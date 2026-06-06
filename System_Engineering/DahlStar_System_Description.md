@@ -2,11 +2,11 @@
 
 ## 1 - Overview
 
-![DahlStar Antenna Assembly](../Images/DahlStar_Antenna_Assembly_Breakdown.png)
+![System Assembly](../Images/System_Assembly.png)
 
 The DahlStar Antenna System V1 consists of a single motor-driven adjustable coil-loaded vertical antenna, similar to the classic screwdriver antenna design. It uses a stepper motor to extend/retract the coil accross fingerstock contacts at the top of a 36-inch radiating tube that houses the coil and the stepper motor. A ~6 foot radiating copper tube is attached to the upper end of the loading coil. The antenna is targetted to cover all bands from 80m to 10m.
 
-For impedence matching, a bifilar 4:1 unun (18 ga wire on a T106-2 core with 5 taps for turns 9A through 13A) is located in the electronics housing at the bottom of the antenna outside of the radiating tube. The taps are selectable via electro-optical relays. 5 of the 8 relays available on the realay module are used for the taps. A 6th relay is used for remote poser switching for the stepper motor. 2 relays remain unused and are avaliable for future feature expansions.
+For impedence matching, a bifilar 4:1 unun (18 ga wire on a T106-2 core with 5 taps for turns 9A through 13A) is located in the unun housing near the bottom of the antenna outside of the radiating tube. The taps are selectable via electro-optical relays. 5 of the 8 relays available on the relay module are used for the taps. A 6th relay is used for remote poser switching for the stepper motor. 2 relays remain unused and are avaliable for future feature expansions.
 
 A contact limit switch is placed just above the stepper motor to sense when the loading coil has reached its fully retracted home position. For the fully extended position, monitoring the stepper motor count will be used instead of a limit switch. This requires that the antenna first be calibrated by moving it to its "home" position at the downstop limit switch prior to use. If t is already there when powered on, the system recognizes that and considers it already calibrated for use.
 
@@ -280,7 +280,7 @@ Specifications and costs for all components are included in this section.
 
 [Arduino Uno R4 Wifi Schematics](../Datasheets/Arduino_R4_WiFi-schematics.pdf)
 
-Approximate Cost: $27.50 (Amazon, 6/2/2026)
+Approximate Cost: $27.50 (Amazon)
 
 #### 3.1.2 - A2: Arduino Motor Controller Shield R3 
 
@@ -288,7 +288,7 @@ Approximate Cost: $27.50 (Amazon, 6/2/2026)
 
 [Arduino Motor Controller Shield R3 Schematic](../Datasheets/Arduino_Motor_Controller_R3-schematic.pdf)
 
-Approximate Cost: $28.40 (Amazon, 6/2/2026)
+Approximate Cost: $28.40 (Amazon)
 
 #### 3.1.3 - A3: Hosyond 0.96 Inch OLED I2C Display Module 
 
@@ -296,7 +296,7 @@ Approximate Cost: $28.40 (Amazon, 6/2/2026)
 
 [Hosyond GME12864-13 Datasheet](<../Datasheets/OLED 4 Pin 128x64 Display module 0.96 inch blue color.pdf>)
 
-Approximate Cost: $13.48 (For 5 units) (Amazon, 6/2/2026)
+Approximate Cost: $13.48 (Amazon, 5 units)
 
 #### 3.1.4 - A4: Elegoo 8 Channel Relay Module
 
@@ -310,7 +310,7 @@ Approximate Cost: $13.48 (For 5 units) (Amazon, 6/2/2026)
 
 [Elegoo 8 Channel Relay Module Dimensions](<../Datasheets/8 way photocoupler with size chart.pdf>)
 
-Approximate Cost: $8.99 (Amazon, 6/2/2026)
+Approximate Cost: $8.99 (Amazon)
 
 #### 3.1.5 - A5: 5V Converter Module
 
@@ -322,8 +322,8 @@ Although they can be purchased, the 12V to 5V voltage converter for this impleme
 * TO220 Heat Sink
 * Proto Board
 
-Approximate Cost (Amazon, 6/2/2026):
-* $2.50 (Custom)
+Approximate Cost (Amazon):
+* $3.00 (Custom)
 * $10.00-$15.00 (If purchased complete)
 
 #### 3.1.6 - A6: Limit Switch Debounce
@@ -338,24 +338,24 @@ Approximate Cost: $0.25
 #### 3.1.7 - J1 / J2: SZJELEN SP21 2-Pin Panel Mount 21mm Waterproof Connector
 ![SZJELEN SP21 Connector](../Images/SZJLEN_SP.png_Connector.png)
  
-Approximate Cost: $9.20 (Amazon, 6/4/2026)
+Approximate Cost: $9.20 (Amazon)
 
 #### 3.1.8 - J3: USB-C Connector / Jumper
 ![AAOTOKK USB Type C Panel Mount Adapter Cable](../Images/AAOTOKK_USB_Type_C_Panel_Mount_Adapter_Cable.png)
 
-Approximate Cost: $9.69 (Amazon, 6/4/2026)
+Approximate Cost: $9.69 (Amazon)
 
 #### 3.1.9 - J4: Screw Terminal Bus Bar
 ![Square D PK7GTACP 7 Terminal Ground Bar Kit](../Images/Screw_Terminal_Bus_Bar.png)
 
 Note: Although it is officially named as a ground bar, it is not being used for grounding in this system. Instead, it is used to capture the signal from whatever unun tap is active.
 
-Approximate Cost: $8.98 (Amazon, 6/4/2026)
+Approximate Cost: $8.98 (Amazon)
 
 #### 3.1.10 - J5: SO239 Antenna Connector
 ![bnafes UHF Female SO239 Panel Chassis Connector](../Images/bnafes_UHF_Female_SO239_Chassis_Mount_Connector.png)
 
-Approximate Cost: $8.99 (For 4 units) (Amazon, 6/4/2026)
+Approximate Cost: $8.99 (Amazon, 4 units)
 
 #### 3.1.11 - J6: SO239 Radio Connector
 Included for completeness only, as this is built in to the transceiver radio.
@@ -367,15 +367,15 @@ Note: The above is a simplified incomplete cad image of the assembly. It does no
 
 The unun requires fabrication from the following:
 
-##### 3.1.12.1 - Core
+##### 3.1.12.1 - UNUN Core
 ![T106-2 Toroidal Core](../Images/T106-2_Toroidal_Core.png)
 
-Approximate Cost: $5.99 (For 5 units) (Amazon, 6/4/2026)
+Approximate Cost: $5.99 (Amazon, 5 units)
 
 ##### 3.1.12.2 - 18 GA Enameled Wire
 ![18 GA Enameled Wire](../Images/18_GA_Enameled_Wire.png)  
 
-Approximate Cost: $29.90 (For 202 feet) (Amazon, 6/4/2026)
+Approximate Cost: $29.90 (Amazon, 202 feet)
 
 Note: Only a very small amount of this wire is actually needed for a 15 turn bi-filar unun of this size, so smaller a smaller purchase quantity is recommended if available. Also, don't forget to sand off the enamal wire insulation wherever an alectrical connection is made.
 
@@ -428,7 +428,7 @@ A 1-inch PVC pipe is assembled with the loading coil form assembly to provide st
 
 Amount Needed: 100 ft
 
-Approximate Cost: $25.00
+Approximate Cost: $25.00 (Amazon)
 
 #### 3.1.15 - M1: Stepperonline NEMA 17 27:1 Geared Stepper Motor
 
@@ -440,13 +440,13 @@ The 27:1 gear reduction being used is probably excessive, but for the initial im
 
 [17HS15-1684S-PG27 Torque Curve](../Datasheets/17HS19-1684S-PG27_Torque_Curve.pdf)
 
-Approximate Cost: $41.91 (Amazon, 6/2/2026) 
+Approximate Cost: $41.91 (Amazon) 
 
 #### 3.1.16 - SW1: HiLetgo Micro Limit Switch
 
 ![HiLetgo Micro Limit Switch Image](../Images/HiLetgo_Limit_Switch_Image.png)
 
-Approximate Cost: $5.99 (For 10 units) (Amazon, 6/2/2026)
+Approximate Cost: $5.99 (Amazon, 10 units)
 
 ### 3.2 - Other Hardware
 The hardware in this section is presented in the order of recommended assemmbly. Although the fastening hardware (bolts, screws, nuts, etc.) is mentioned, exact sizes and lengths can be chosen based on availablity. All are designed to be 1/4 inch diameter or smaller. Only the stepper motor attachment requires metric (3 mm).
@@ -505,24 +505,46 @@ Recommended Material: ASA (67.25 g, no supports needed)
 
 Approximate Cost: $4.00
 
-#### 3.2.3 - Stepper Motor Mount Assembly
-The stepper motor mount attaches to the stepper motor, as well as the inner sleeve assembly.
+#### 3.2.3 - Stepper Motor Installation
+The stepper motor is attached to the motor attach fitting, which is then attached to the inner sleeve assembly. The stepper motor shaft is attached to the leadscrew coupling. The leadscrew is engaged with the leadscrew nut of the carriage (attached to the loading coil assembly). The leadscrew/carriage/loading coil is then inserted into the inner sleeve assembly until the leadscrew engages with the leadscrew coupling. 
 
 ![Stepper Motor Installation](../Images/Stepper_Motor_Installation.png)
 
-##### 3.2.3.1 - Stepper Motor Mount
-The stepper motor mount (motor housing) is 3D printed. It has 4 holes/slots for routing the wires from the limit switch (2 wires) and for the wire connecting the HF signal wire from the screw terminal bus bar to the emitting tube.
+##### 3.2.3.1 - Motor Attach Fitting
+The motor attach fitting is 3D printed. It has 4 holes/slots for routing the wires from the limit switch (2 wires) and for the wire connecting the HF signal wire from the screw terminal bus bar to the emitting tube.
 
-![Stepper Motor Mount](../Images/Stepper_Motor_Mount.png)
+![Motor Attach Fitting](../Images/Motor_Attach_Fitting.png)
 
 Recommended Material: ASA (26.62 g, support needed for motor recess on bottom)
 
 Approximate Cost: $2.00
 
-#### 3.2.4 - Relay Module Mount Assembly
-The relay module mount assembly cosists of a relay module mount fitting, the screw terminal bus bar, and the 8 channel relay module.
+##### 3.2.3.2 - Leadscrew Assembly
+550mm T8 Tr8x8 Lead Screw and Brass Nut (Acme Thread, 2mm Pitch, 4 Starts, 8mm Lead).
 
-![Relay Mount Assembly](../Images/Relay_Mount_Assembly.png)
+![alt text](../Images/Leadscrew_Assembly.png)
+
+Manufacturer: ReliaBot
+
+Part Number: 	EU-RZ007-37
+
+Approximate Cost: $18.59 (Amazon)
+
+##### 3.2.3.3 - Leadscrew Coupling
+8mm to 8mm Stepper Motor Shaft Coupling 30mm Length 25mm Diameter Shaft Coupler Aluminum Alloy Joint Connector.
+
+![alt text](../Images/Leadscrew_Coupling.png)
+
+Manufacturer: Sinoblu
+
+Part Number: 	RL-A-2530-8-8
+
+Approximate Cost: $14.99 (Amazon, 2 units)
+
+#### 3.2.4 - 8 Channel Relay Module and Screw Terminal Bus Bar Installation
+The 8 channel relay module and the screw terminal bus bar are both attached to the relay module mount fitting.
+
+![Relay Module and Bus Bar Installation](../Images/Relay_Module_and_Bus_Bar_Installation.png)
 
 ##### 3.2.4.1 - Relay Module Mount Fitting
 The relay module mount fitting is 3D printed and include holes to facilitate wire connections to the screw terminal bus bar.
@@ -533,10 +555,10 @@ Recommended Material: ASA (51.12 g, no supports needed)
 
 Approximate Cost: $3.00
 
-#### 3.2.5 - Radiating Tube Assembly (Main Antenna Body)
-The radiating tube assembly consists a radiating tube, the inner sleeve assembly with stepper motor and limit switch, the lead screw, the loading coil assembly with carriage and lead screw nut, the fingerstock element. The portion of the loading coil enclosed by the radiating tube is inert, as the radiating tube shields it.
+#### 3.2.5 - Radiating Tube Installation
+The radiating tube is assembled to the inner sleeve assembly (with stepper motor and limit switch), the lead screw, the loading coil assembly (with carriage and lead screw nut), and the fingerstock element. The portion of the loading coil enclosed by the radiating tube is inert, as the tube shields it.
 
-![alt text](../Images/Radiating_Tube_Assembly.png)
+![Radiating Tube Installation](../Images/Radiating_Tube_Installation.png)
 
 ##### 3.2.5.1 - Radiating Tube
 Although this implementation used a galvanized steel cyclone fence post segment due to low cost and availability, any metal tube having an outside dimension of 2.375 inches and an inside diameter of 2.250 inches will be compatible with this design. A 3D printed drill guide tool is provided to aid in locating the holes for the tube.
@@ -556,10 +578,10 @@ Approximate Cost: $28.33 (DigiKey, 24 inch length)
 
 Other fingerstock styles / methods may be used to facilitate coil tapping.
 
-#### 3.2.6 - Electronics Cover Sleeve Assembly
+#### 3.2.6 - Electronics Cover Sleeve Installation
 The electronics cover sleeve houses the 8 channel relay module and its mount fitting. It attaches to the radiating tube. Wires from the stepper motor and the limit switch pass through the sleeve as well. 
 
-![Electronics Cover Sleeve Assembly](../Images/Electronics_Cover_Sleeve_Assembly.png)
+![Electronics Cover Sleeve Installation](../Images/Electronics_Cover_Sleeve_Installation.png)
 
 ##### 3.2.6.1 - Electronics Cover Sleeve
 The electronics cover sleeve is 3D printed. Given the environment and handling, it is intentionally robust.
@@ -570,35 +592,35 @@ Recommended Material: ASA (222.01 g, no supports needed)
 
 Approximate Cost: $11.00
 
-#### 3.2.7 - UNUN Housing Assembly
-The unun housing asseMbly includes the unun housing and the multi-tap unun. It is assembled to the electronics cover sleeve. Route remaining wires through the openings in the end of the housing.
+#### 3.2.7 - UNUN Housing Installation
+The unun housing installation attaches the unun housing and the multi-tap unun. It is assembled to the electronics cover sleeve. Route remaining wires through the openings in the end of the housing.
 
-![Unun Housing Assembly](../Images/Unun_Housing_Assembly.png)
+![Unun Housing Installation](../Images/Unun_Housing_Installation.png)
 
 ##### 3.2.7.1 - UNUN Housing
 The unun housing is 3D printed, robustly design per previously mentioned reasons.
 
 ![Unun Housing](../Images/Unun_Housing.png)
 
-#### 3.2.8 - Arduino Housing Assembly
-The arduino housing assembly consists of the arduino housing, the arduino uno R4 wifi, the arduino motor controller, the 5V converter, the OLED display, the USB-C connector, the 12V power connector, and the SO239 antenna connector. It is assembled to the unun housing assembly.
+#### 3.2.8 - Electronics Housing Assembly Installation
+The electronics housing assembly consists of the electroncis housing, the arduino uno R4 wifi, the arduino motor controller, the 5V converter, the OLED display, the USB-C connector, the 12V power connector, and the SO239 antenna connector. It is assembled to the unun housing.
 
-![Arduino Housing Assembly](../Images/Arduino_Housing_Assembly.png)
+![Electronis Housing Assembly](../Images/Electronics_Housing_Assembly.png)
 
-Assemble the electronics components in the arduino housing using screws (normal and self tapping) and nuts (as needed).
+Assemble the electronics components in the electronics housing using screws (normal and self tapping) and nuts (as needed).
 
-![Arduino Housing Electronics](../Images/Arduino_Housing_Electronics.png)
+![Electronics Housing Electronics](../Images/Electronics_Housing_Electronics.png)
 
-##### 3.2.8.1 - Arduino Housing
-The robustly designed arduino housing is 3D printed.
+##### 3.2.8.1 - Electronics Housing
+The robustly designed electronics housing is 3D printed.
 
-![Arduino Housing](../Images/Arduino_Housing.png)
+![Arduino Housing](../Images/Electronics_Housing.png)
 
 Recommended Material: ASA (11.64 g, no supports needed)
 
 Approximate Cost: $12.00
 
-#### 3.2.8 - Radiating Rod Assembly
+#### 3.2.8 - Radiating Rod Installation
 The radiating rod is the downstream radiating element from the loading coil. It is assembled to the loading coil assembly with TBD parts, and is electrically connected to the loading coil wire.
 
 ##### 3.2.8.1 - Radiating Rod
