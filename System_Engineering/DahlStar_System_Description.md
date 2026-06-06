@@ -2,6 +2,7 @@
 
 ## 1 - Overview
 
+
 ![System Assembly](../Images/System_Assembly.png)
 
 The DahlStar Antenna System V1 consists of a single motor-driven adjustable coil-loaded vertical antenna, similar to the classic screwdriver antenna design. It uses a stepper motor to extend/retract the coil accross fingerstock contacts at the top of a 36-inch radiating tube that houses the coil and the stepper motor. A ~6 foot radiating copper tube is attached to the upper end of the loading coil. The antenna is targetted to cover all bands from 80m to 10m.
