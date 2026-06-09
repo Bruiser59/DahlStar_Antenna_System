@@ -139,6 +139,7 @@ static void broadcastLine(const String& msg) {
     Serial.println(msg);
     if (gWifiReady && gWifiClient && gWifiClient.connected()) {
         gWifiClient.println(msg);
+        gWifiClient.flush();
     }
 }
 
@@ -468,6 +469,7 @@ static void onClientConnected() {
     // Send current state so the client is immediately in sync
     sendStatusTo(gWifiClient);
     gWifiClient.println("STATUS:TRANSPORT:WIFI");
+    gWifiClient.flush();
 }
 
 void update() {
@@ -489,7 +491,10 @@ void update() {
         char c = (char)gWifiClient.read();
         if (c == '\n') {
             rxBuf.trim();
-            if (rxBuf.length()) processCmd(rxBuf, gWifiClient);
+            if (rxBuf.length()) {
+                processCmd(rxBuf, gWifiClient);
+                gWifiClient.flush();
+            }
             rxBuf = "";
         } else if (c != '\r') {
             rxBuf += c;
