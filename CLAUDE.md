@@ -47,9 +47,9 @@ Both projects are currently **bare stubs** — only the default PlatformIO and X
 | Pin | Direction | Function | Notes |
 |-----|-----------|----------|-------|
 | D3 | Output | Motor Shield PWMA | Channel A PWM speed |
-| D5 | Input | Limit switch sense | Via RC debounce (A6). HIGH = not at home; LOW = coil at home |
+| D5 | Input | Limit switch sense | Via RC debounce (A6). HIGH = coil at home (switch actuated, NC opens, pin floats high); LOW = coil not at home (NC contact closed, pulls pin low). Confirmed by hardware test. |
 | D6 | Output | 9T UNUN tap relay (K1) | Normally Open |
-| D7 | Output | Motor power relay (K8) | Active high; hold asserted for power on |
+| D7 | Output | Motor power relay (K8) | Active LOW (Elegoo module); LOW = energized/NO, HIGH = de-energized/NC |
 | D8 | Output | Motor Shield BRAKEB | Channel B brake |
 | D9 | Output | Motor Shield BRAKEA | Channel A brake |
 | D11 | Output | Motor Shield PWMB | Channel B PWM speed |
@@ -80,7 +80,8 @@ The 11T tap (K3, controlled by A3) is wired **Normally Closed** — it is active
 - **Steps per output revolution:** 200 × 26.85 = 5,370 steps
 - **Lead screw:** ReliaBot 550 mm T8 Tr8x8 — 2 mm pitch, 4 starts = **8 mm lead/rev**
 - **Travel per step:** ~0.00149 mm/step
-- **MAX_STEPS constant:** TBD — needs total coil travel distance measured from assembled hardware. Formula: `MAX_STEPS = total_travel_mm / 0.00149`
+- **MAX_STEPS constant:** 289,799 — based on 17 in (431.8 mm) maximum coil travel. Formula: `MAX_STEPS = total_travel_mm / 0.00149`
+- **Motor direction (confirmed):** CW rotation (viewed from gearbox output shaft) = extend; CCW = retract. In firmware: positive step count = extend, negative = retract.
 
 ### Recommended Libraries
 
@@ -181,6 +182,6 @@ Status updates are sent at ~200 ms intervals during motion. Calibration completi
 - **11T tap is Normally Closed** (default at power-on) — K3 / pin A3
 - **9T tap is on D6** (not A1 as in earlier incorrect schematics)
 - **Motor power relay is on D7** (not A0 as in earlier incorrect schematics)
-- **Limit switch sense is D5 only** — D2 and D4 are unused; HIGH = not at home, LOW = at home
+- **Limit switch sense is D5 only** — D2 and D4 are unused; HIGH = at home (switch actuated, NC opens, pin floats high via pull-up); LOW = not at home. Confirmed by hardware test — the proposal appendix has this backwards.
 - **OLED is 3.3 V** (not 5 V)
 - **Transport order:** Wi-Fi first (simpler), BLE second (more complex)

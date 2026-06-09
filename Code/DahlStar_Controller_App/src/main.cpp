@@ -1,18 +1,506 @@
-#include <Arduino.h>
+// DahlStar Controller Firmware — Phase 1: Firmware Foundation
+//
+// Implements: MotionController, RelayManager, DisplayManager, PersistenceManager,
+//             CommManager (Serial transport — Wi-Fi in Phase 2, BLE in Phase 3).
+//
+// ── Relay polarity ────────────────────────────────────────────────────────────
+// All relays are on the Elegoo 8-channel optocoupler module — ACTIVE-LOW.
+//   LOW  = energize relay coil
+//   HIGH = de-energize relay coil
+//
+//   K3 (A3, 11T tap): Normally Closed.
+//     HIGH (de-energized): NC contact CLOSED → 11T connected (power-on default)
+//     LOW  (energized):    NC contact OPEN   → 11T disconnected
+//
+//   K1,K2,K4,K5 (D6,A2,A4,A5): Normally Open taps.
+//     LOW  (energized):    NO contact CLOSED → tap connected
+//     HIGH (de-energized): NO contact OPEN   → tap disconnected
+//
+//   K8 (D7): Normally Open motor relay.
+//     LOW  (energized):    NO contact CLOSED → motor power on
+//     HIGH (de-energized): NO contact OPEN   → motor power off
+//
+// ── Limit switch (D5) ─────────────────────────────────────────────────────────
+//   NC contact + RC debounce (A6). INPUT_PULLUP applied.
+//   HIGH = coil AT home     (switch actuated, NC opens → pin floats high via pull-up)
+//   LOW  = coil NOT at home (NC contact closed, pulls pin to GND)
+//   Confirmed by hardware test.
+//
+// ── A0, A1 ───────────────────────────────────────────────────────────────────
+//   Motor shield current-sense INPUTS. Never write to these pins.
 
-// put function declarations here:
-int myFunction(int, int);
+#include <Arduino.h>
+#include <AccelStepper.h>
+#include <U8g2lib.h>
+#include <Wire.h>
+#include <EEPROM.h>
+
+// ── Pin Definitions ───────────────────────────────────────────────────────────
+
+#define PIN_PWMA         3
+#define PIN_DIRA        12
+#define PIN_BRAKEA       9
+#define PIN_PWMB        11
+#define PIN_DIRB        13
+#define PIN_BRAKEB       8
+
+#define PIN_MOTOR_RELAY  7    // K8, active-LOW, Normally Open
+#define PIN_LIMIT        5    // HIGH = coil at home (switch actuated); confirmed by hardware test
+
+#define PIN_TAP_9T       6    // K1, active-LOW, Normally Open
+#define PIN_TAP_10T     A2    // K2, active-LOW, Normally Open
+#define PIN_TAP_11T     A3    // K3, active-LOW, Normally Closed (default)
+#define PIN_TAP_12T     A4    // K4, active-LOW, Normally Open
+#define PIN_TAP_13T     A5    // K5, active-LOW, Normally Open
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+// Total coil travel in steps.
+//   17 in × 25.4 mm/in = 431.8 mm ÷ 0.00149 mm/step = 289,799 steps
+const long MAX_STEPS           = 289799L;
+
+const float HOMING_SPEED       = 400.0f;    // steps/sec — slow for safe homing
+const float HOMING_ACCEL       = 200.0f;
+const float MOVE_SPEED         = 800.0f;    // steps/sec — normal operation
+const float MOVE_ACCEL         = 400.0f;
+const long  JOG_STEPS          = 1000L;     // steps for bench EXTEND/RETRACT commands
+
+const unsigned long STATUS_INTERVAL_MS  = 200;   // position reports during motion
+const unsigned long DISPLAY_INTERVAL_MS = 500;   // OLED refresh during motion
+
+// EEPROM layout: magic(2) + stepPos(4) + tap(1) = 7 bytes
+const uint8_t EEPROM_MAGIC_0 = 0xDA;
+const uint8_t EEPROM_MAGIC_1 = 0x57;
+const int     EEPROM_BASE    = 0;
+
+// ── Enumerations ─────────────────────────────────────────────────────────────
+
+enum TapId     : uint8_t { TAP_9T=0, TAP_10T, TAP_11T, TAP_12T, TAP_13T, TAP_COUNT };
+enum MotorState: uint8_t { MOTOR_IDLE, MOTOR_HOMING, MOTOR_MOVING };
+
+static const uint8_t     kTapPins[TAP_COUNT]  = {
+    PIN_TAP_9T, PIN_TAP_10T, PIN_TAP_11T, PIN_TAP_12T, PIN_TAP_13T
+};
+static const char* const kTapNames[TAP_COUNT] = { "9T","10T","11T","12T","13T" };
+
+// ── OLED ─────────────────────────────────────────────────────────────────────
+
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE);
+
+// ── Stepper (AccelStepper custom-phase mode) ──────────────────────────────────
+
+static const uint8_t kPhases[4][2] = {
+    {HIGH,HIGH}, {LOW,HIGH}, {LOW,LOW}, {HIGH,LOW}
+};
+static int gPhase = 0;
+
+static void stepForward()  {
+    gPhase = (gPhase+1)&3;
+    digitalWrite(PIN_DIRA, kPhases[gPhase][0]);
+    digitalWrite(PIN_DIRB, kPhases[gPhase][1]);
+}
+static void stepBackward() {
+    gPhase = (gPhase+3)&3;
+    digitalWrite(PIN_DIRA, kPhases[gPhase][0]);
+    digitalWrite(PIN_DIRB, kPhases[gPhase][1]);
+}
+
+AccelStepper stepper(stepForward, stepBackward);
+
+// ── Global State ──────────────────────────────────────────────────────────────
+
+static MotorState    gMotorState    = MOTOR_IDLE;
+static TapId         gActiveTap     = TAP_11T;
+static bool          gMotorPowered  = false;
+static bool          gCalibrated    = false;
+static bool          gDispDirty     = true;
+static unsigned long gLastStatusMs  = 0;
+static unsigned long gLastDispMs    = 0;
+
+// ── PersistenceManager ────────────────────────────────────────────────────────
+
+namespace Persist {
+
+void save(long pos, TapId tap) {
+    EEPROM.update(EEPROM_BASE+0, EEPROM_MAGIC_0);
+    EEPROM.update(EEPROM_BASE+1, EEPROM_MAGIC_1);
+    EEPROM.put   (EEPROM_BASE+2, pos);
+    EEPROM.update(EEPROM_BASE+6, (uint8_t)tap);
+}
+
+bool load(long &pos, TapId &tap) {
+    if (EEPROM.read(EEPROM_BASE+0) != EEPROM_MAGIC_0 ||
+        EEPROM.read(EEPROM_BASE+1) != EEPROM_MAGIC_1) return false;
+    EEPROM.get(EEPROM_BASE+2, pos);
+    uint8_t t = EEPROM.read(EEPROM_BASE+6);
+    tap = (t < TAP_COUNT) ? (TapId)t : TAP_11T;
+    return true;
+}
+
+} // namespace Persist
+
+// ── RelayManager ─────────────────────────────────────────────────────────────
+
+namespace Relay {
+
+void init() {
+    pinMode(PIN_MOTOR_RELAY, OUTPUT);
+    digitalWrite(PIN_MOTOR_RELAY, HIGH);   // K8 de-energized = motor off
+
+    for (uint8_t i = 0; i < TAP_COUNT; i++) {
+        pinMode(kTapPins[i], OUTPUT);
+        digitalWrite(kTapPins[i], HIGH);   // all de-energized; K3 NC → 11T connected
+    }
+}
+
+void motorOn() {
+    digitalWrite(PIN_MOTOR_RELAY, LOW);    // energize K8 → motor power on
+    delay(100);                            // relay settle time
+    analogWrite(PIN_PWMA, 255);
+    analogWrite(PIN_PWMB, 255);
+    digitalWrite(PIN_BRAKEA, LOW);
+    digitalWrite(PIN_BRAKEB, LOW);
+    digitalWrite(PIN_DIRA, kPhases[gPhase][0]);
+    digitalWrite(PIN_DIRB, kPhases[gPhase][1]);
+    gMotorPowered = true;
+}
+
+void motorOff() {
+    digitalWrite(PIN_BRAKEA, HIGH);
+    digitalWrite(PIN_BRAKEB, HIGH);
+    analogWrite(PIN_PWMA, 0);
+    analogWrite(PIN_PWMB, 0);
+    delay(50);
+    digitalWrite(PIN_MOTOR_RELAY, HIGH);   // de-energize K8 → motor power off
+    gMotorPowered = false;
+}
+
+// Switch UNUN tap. All relays active-LOW on Elegoo module.
+// K3 NC: LOW opens 11T path; HIGH de-energizes K3 → NC closes → 11T reconnected.
+// K1,K2,K4,K5 NO: LOW energizes → NO closes → tap connected.
+void setTap(TapId tap) {
+    if (tap == TAP_11T) {
+        for (uint8_t i = 0; i < TAP_COUNT; i++)
+            if (i != TAP_11T) digitalWrite(kTapPins[i], HIGH);  // open all NO taps
+        digitalWrite(kTapPins[TAP_11T], HIGH);  // de-energize K3 → NC closes → 11T on
+    } else {
+        digitalWrite(kTapPins[TAP_11T], LOW);   // energize K3 → NC opens → 11T off
+        for (uint8_t i = 0; i < TAP_COUNT; i++)
+            if (i != TAP_11T && i != (uint8_t)tap)
+                digitalWrite(kTapPins[i], HIGH);                // open other NO taps
+        digitalWrite(kTapPins[tap], LOW);                       // energize target tap
+    }
+    gActiveTap = tap;
+}
+
+} // namespace Relay
+
+// ── DisplayManager ────────────────────────────────────────────────────────────
+
+namespace Display {
+
+void init() { display.begin(); }
+
+void render(const char* line2Override = nullptr) {
+    long pos = stepper.currentPosition();
+    int  pct = (gCalibrated && MAX_STEPS > 0)
+                 ? (int)(100L * pos / MAX_STEPS) : -1;
+
+    display.clearBuffer();
+    display.setFont(u8g2_font_6x10_tr);
+
+    // Yellow zone (rows 0–15): title, centered
+    display.drawStr(28, 11, "DahlStar");
+
+    // Line 2: position or status override
+    if (line2Override) {
+        display.drawStr(0, 26, line2Override);
+    } else if (!gCalibrated) {
+        display.drawStr(0, 26, "POS: uncalibrated");
+    } else {
+        char buf[22];
+        snprintf(buf, sizeof(buf), "POS:%ld (%d%%)", pos, pct);
+        display.drawStr(0, 26, buf);
+    }
+
+    // Line 3: active UNUN tap
+    {
+        char buf[12];
+        snprintf(buf, sizeof(buf), "TAP: %s", kTapNames[gActiveTap]);
+        display.drawStr(0, 40, buf);
+    }
+
+    // Line 4: motor / system state
+    const char* mstate;
+    if      (gMotorState == MOTOR_HOMING) mstate = "MTR: HOMING";
+    else if (gMotorState == MOTOR_MOVING) mstate = "MTR: MOVING";
+    else if (gMotorPowered)               mstate = "MTR: ON";
+    else                                  mstate = "MTR: READY";
+    display.drawStr(0, 54, mstate);
+
+    display.sendBuffer();
+    gDispDirty  = false;
+    gLastDispMs = millis();
+}
+
+void splash() {
+    display.clearBuffer();
+    display.setFont(u8g2_font_ncenB14_tr);
+    display.drawStr(8, 30, "DahlStar");
+    display.setFont(u8g2_font_6x10_tr);
+    display.drawStr(12, 50, "Initializing...");
+    display.sendBuffer();
+}
+
+} // namespace Display
+
+// ── MotionController ──────────────────────────────────────────────────────────
+
+namespace Motion {
+
+static void onHomeReached() {
+    stepper.setCurrentPosition(0);
+    stepper.stop();
+    Relay::motorOff();
+    gMotorState = MOTOR_IDLE;
+    gCalibrated = true;
+    Persist::save(0, gActiveTap);
+    Display::render();
+    Serial.println("STATUS:POS:0");
+    Serial.println("STATUS:CAL:DONE");
+}
+
+// Returns false if the command cannot be accepted.
+bool startHome() {
+    if (gMotorState != MOTOR_IDLE) return false;
+    gMotorState = MOTOR_HOMING;
+    Relay::motorOn();
+    stepper.setMaxSpeed(HOMING_SPEED);
+    stepper.setAcceleration(HOMING_ACCEL);
+    stepper.moveTo(-500000L);   // retract well past any real travel
+    Display::render("Homing...");
+    return true;
+}
+
+// Move by `steps` from current position (positive = extend, negative = retract).
+// Returns false if the command cannot be accepted.
+bool startMove(long steps) {
+    if (gMotorState == MOTOR_HOMING) return false;
+    if (!gCalibrated)                return false;
+    long target = constrain(stepper.currentPosition() + steps, 0L, MAX_STEPS);
+    if (!gMotorPowered) Relay::motorOn();
+    gMotorState = MOTOR_MOVING;
+    stepper.setMaxSpeed(MOVE_SPEED);
+    stepper.setAcceleration(MOVE_ACCEL);
+    stepper.moveTo(target);
+    gDispDirty = true;
+    return true;
+}
+
+void stop() {
+    stepper.stop();
+    gDispDirty = true;
+}
+
+// Call every loop() iteration — drives the stepper and manages state transitions.
+void update() {
+    if (gMotorState == MOTOR_IDLE) return;
+
+    if (gMotorState == MOTOR_HOMING) {
+        if (digitalRead(PIN_LIMIT) == HIGH) { onHomeReached(); return; }
+        stepper.run();
+        return;
+    }
+
+    if (gMotorState == MOTOR_MOVING) {
+        // Safety backstop: treat limit switch as home during retraction
+        if (stepper.targetPosition() < stepper.currentPosition() &&
+            digitalRead(PIN_LIMIT) == HIGH) {
+            onHomeReached();
+            return;
+        }
+        stepper.run();
+        if (stepper.distanceToGo() == 0) {
+            Relay::motorOff();
+            gMotorState = MOTOR_IDLE;
+            Persist::save(stepper.currentPosition(), gActiveTap);
+            Serial.print("STATUS:POS:");
+            Serial.println(stepper.currentPosition());
+            gDispDirty = true;
+        }
+    }
+}
+
+} // namespace Motion
+
+// ── CommManager (Serial — Phase 1 bench interface) ────────────────────────────
+//
+// Uses the same ASCII protocol that Phase 2 (Wi-Fi) will carry over TCP.
+// Commands: CMD:<VERB>[:<PARAM>]\n
+// Responses: ACK:<VERB>\n  |  NAK:<VERB>:<REASON>\n  |  STATUS:<KEY>:<VALUE>\n
+
+namespace Comm {
+
+static String rxBuf;
+
+static void sendStatus() {
+    Serial.print("STATUS:POS:"); Serial.println(stepper.currentPosition());
+    Serial.print("STATUS:TAP:"); Serial.println(kTapNames[gActiveTap]);
+    Serial.print("STATUS:MTR:"); Serial.println(gMotorPowered ? "ON" : "OFF");
+    Serial.print("STATUS:CAL:"); Serial.println(gCalibrated   ? "DONE" : "PENDING");
+}
+
+static void process(const String& cmd) {
+    if (!cmd.startsWith("CMD:")) return;
+    String body = cmd.substring(4);
+
+    if (body == "CALIBRATE" || body == "HOME") {
+        if (Motion::startHome()) Serial.println("ACK:CALIBRATE");
+        else                     Serial.println("NAK:CALIBRATE:BUSY");
+
+    } else if (body == "STOP") {
+        Motion::stop();
+        Serial.println("ACK:STOP");
+
+    } else if (body == "STATUS") {
+        sendStatus();
+
+    } else if (body == "EXTEND") {
+        if (Motion::startMove(+JOG_STEPS)) Serial.println("ACK:EXTEND");
+        else if (!gCalibrated)             Serial.println("NAK:EXTEND:NOT_CALIBRATED");
+        else                               Serial.println("NAK:EXTEND:BUSY");
+
+    } else if (body == "RETRACT") {
+        if (Motion::startMove(-JOG_STEPS)) Serial.println("ACK:RETRACT");
+        else if (!gCalibrated)             Serial.println("NAK:RETRACT:NOT_CALIBRATED");
+        else                               Serial.println("NAK:RETRACT:BUSY");
+
+    } else if (body.startsWith("MOVE:")) {
+        long steps = body.substring(5).toInt();
+        if (Motion::startMove(steps)) Serial.println("ACK:MOVE");
+        else if (!gCalibrated)        Serial.println("NAK:MOVE:NOT_CALIBRATED");
+        else                          Serial.println("NAK:MOVE:BUSY");
+
+    } else if (body == "MOTOR:ON") {
+        if (gMotorState != MOTOR_IDLE) { Serial.println("NAK:MOTOR:ON:BUSY"); return; }
+        Relay::motorOn();
+        gDispDirty = true;
+        Serial.println("ACK:MOTOR:ON");
+
+    } else if (body == "MOTOR:OFF") {
+        if (gMotorState != MOTOR_IDLE) { Serial.println("NAK:MOTOR:OFF:BUSY"); return; }
+        Relay::motorOff();
+        gDispDirty = true;
+        Serial.println("ACK:MOTOR:OFF");
+
+    } else if (body.startsWith("TAP:")) {
+        String tapStr = body.substring(4);
+        TapId  tap    = TAP_COUNT;
+        for (uint8_t i = 0; i < TAP_COUNT; i++) {
+            if (tapStr == kTapNames[i]) { tap = (TapId)i; break; }
+        }
+        if (tap == TAP_COUNT) { Serial.println("NAK:TAP:UNKNOWN"); return; }
+        Relay::setTap(tap);
+        Persist::save(stepper.currentPosition(), gActiveTap);
+        gDispDirty = true;
+        Serial.print("ACK:TAP:"); Serial.println(tapStr);
+
+    } else {
+        Serial.print("NAK:"); Serial.print(body); Serial.println(":UNKNOWN_CMD");
+    }
+}
+
+void update() {
+    while (Serial.available()) {
+        char c = (char)Serial.read();
+        if (c == '\n') {
+            rxBuf.trim();
+            if (rxBuf.length()) process(rxBuf);
+            rxBuf = "";
+        } else if (c != '\r') {
+            rxBuf += c;
+        }
+    }
+}
+
+} // namespace Comm
+
+// ── Setup ─────────────────────────────────────────────────────────────────────
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+    Serial.begin(115200);
+    while (!Serial) {}
+
+    // Motor shield pins
+    pinMode(PIN_PWMA,   OUTPUT); pinMode(PIN_DIRA,   OUTPUT); pinMode(PIN_BRAKEA, OUTPUT);
+    pinMode(PIN_PWMB,   OUTPUT); pinMode(PIN_DIRB,   OUTPUT); pinMode(PIN_BRAKEB, OUTPUT);
+    digitalWrite(PIN_BRAKEA, HIGH);  analogWrite(PIN_PWMA, 0);  // safe initial state
+    digitalWrite(PIN_BRAKEB, HIGH);  analogWrite(PIN_PWMB, 0);
+
+    // Limit switch and motor shield current sense (never write A0/A1)
+    pinMode(PIN_LIMIT, INPUT_PULLUP);
+    pinMode(A0, INPUT);
+    pinMode(A1, INPUT);
+
+    Relay::init();
+    Display::init();
+    Display::splash();
+    delay(2000);
+
+    // Restore EEPROM state
+    long  savedPos = 0;
+    TapId savedTap = TAP_11T;
+    bool  hasData  = Persist::load(savedPos, savedTap);
+
+    // If the limit switch is already actuated at boot, coil is at home regardless of EEPROM
+    if (digitalRead(PIN_LIMIT) == HIGH) {  // HIGH = at home (confirmed by hardware test)
+        stepper.setCurrentPosition(0);
+        gCalibrated = true;
+        Relay::setTap(hasData ? savedTap : TAP_11T);
+        Persist::save(0, gActiveTap);
+        Serial.println("STATUS:BOOT:AT_HOME");
+    } else if (hasData) {
+        stepper.setCurrentPosition(savedPos);
+        Relay::setTap(savedTap);
+        gCalibrated = true;
+        Serial.println("STATUS:BOOT:RESTORED");
+    } else {
+        Relay::setTap(TAP_11T);
+        Serial.println("STATUS:BOOT:UNCALIBRATED");
+    }
+
+    stepper.setMaxSpeed(MOVE_SPEED);
+    stepper.setAcceleration(MOVE_ACCEL);
+
+    // Auto-home if position is unknown
+    if (!gCalibrated) {
+        if (Motion::startHome()) {
+            Serial.println("STATUS:HOMING:AUTO");
+        }
+    } else {
+        Display::render();
+        Serial.println("STATUS:READY");
+    }
 }
+
+// ── Loop ──────────────────────────────────────────────────────────────────────
 
 void loop() {
-  // put your main code here, to run repeatedly:
-}
+    Comm::update();
+    Motion::update();
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+    unsigned long now = millis();
+
+    // Periodic position status during motion
+    if (gMotorState != MOTOR_IDLE && (now - gLastStatusMs) >= STATUS_INTERVAL_MS) {
+        gLastStatusMs = now;
+        Serial.print("STATUS:POS:");
+        Serial.println(stepper.currentPosition());
+    }
+
+    // OLED refresh: immediately on state change, or periodically during motion
+    if (gDispDirty ||
+        (gMotorState != MOTOR_IDLE && (now - gLastDispMs) >= DISPLAY_INTERVAL_MS)) {
+        Display::render();
+    }
 }
