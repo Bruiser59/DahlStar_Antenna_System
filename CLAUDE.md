@@ -29,10 +29,11 @@ Images/                          ← Assembly and component photos
 
 ## Code Project Status
 
-Both projects are currently **bare stubs** — only the default PlatformIO and Xcode templates have been generated. No application code has been written yet.
+**Phase 1 (Firmware Foundation):** ✅ Complete — `Code/DahlStar_Controller_App/src/main.cpp` implements full MotionController, RelayManager, DisplayManager, PersistenceManager, and CommManager (USB serial). Bench-validated on hardware.
 
-- `Code/DahlStar_Controller_App/src/main.cpp` — default PlatformIO template, replace entirely
-- `Code/DahlStar_User_Interface_App/DahlStar_User_Interface_App/ContentView.swift` — default Xcode template, replace entirely
+**Phase 2 (USB Serial Communication):** ✅ Complete — `Code/DahlStar_Serial_Harness/` is a Swift CLI harness (POSIX termios, no dependencies) for exercising all firmware commands interactively or via `--test` auto-sequence.
+
+**Phase 3 (macOS UI Application):** 🔲 Not started — `Code/DahlStar_User_Interface_App/` is still the default Xcode stub. Wi-Fi transport should be implemented first (simpler than BLE).
 
 ---
 
@@ -155,10 +156,11 @@ Status updates are sent at ~200 ms intervals during motion. Calibration completi
 
 ## Development Phase Order
 
-1. **Firmware Foundation** — motion control, relay logic, OLED display, EEPROM persistence; bench-validate all hardware interfaces
-2. **Wi-Fi Transport** — TCP server on firmware + full macOS UI with `WiFiTransport`; end-to-end test over Wi-Fi
-3. **BLE Transport** — GATT service on firmware + `BLETransport` on macOS; add to existing UI transport selector
-4. **Integration & Polish** — both transports, dark mode, accessibility, HIG review, documentation
+1. **Firmware Foundation** ✅ — motion control, relay logic, OLED display, EEPROM persistence, USB serial CommManager; bench-validated
+2. **USB Serial Communication** ✅ — ASCII protocol already in firmware; macOS Swift CLI harness (`Code/DahlStar_Serial_Harness/`) for interactive testing and automated command exercise over USB
+3. **macOS UI Application (Core)** — Xcode project; MVVM; AntennaViewModel + all model types; `WiFiTransport` (Wi-Fi first, simpler); all UI views; end-to-end test over Wi-Fi
+4. **BLE Transport** — GATT service on firmware + `BLETransport` on macOS; add to existing UI transport selector
+5. **Integration & Polish** — full system integration, dark mode, accessibility, HIG review, documentation
 
 ---
 
@@ -166,12 +168,11 @@ Status updates are sent at ~200 ms intervals during motion. Calibration completi
 
 | Item | Needed For | Status |
 |------|-----------|--------|
-| Total coil travel distance (mm) | MAX_STEPS constant | Measure from assembled hardware |
-| Wi-Fi SSID / credential provisioning | Phase 2 start | Decide: hardcoded vs. USB provisioning |
-| Arduino IP address or mDNS hostname | Phase 2 macOS client | Decide: fixed IP vs. mDNS |
-| BLE GATT service + characteristic UUIDs | Phase 3 start | Choose 128-bit UUIDs |
+| Wi-Fi SSID / credential provisioning | Phase 3 start | Decide: hardcoded vs. USB provisioning |
+| Arduino IP address or mDNS hostname | Phase 3 macOS client | Decide: fixed IP vs. mDNS |
+| BLE GATT service + characteristic UUIDs | Phase 4 start | Choose 128-bit UUIDs |
 | Minimum macOS version | Xcode deployment target | Recommend: macOS 13 (Ventura) |
-| Position indicator UI design | Phase 2 macOS UI | Choose: progress bar / graphic / band indicator |
+| Position indicator UI design | Phase 3 macOS UI | Choose: progress bar / graphic / band indicator |
 | Band-to-step-position mapping | Optional UI feature | Empirical — determine post-commissioning |
 
 ---
