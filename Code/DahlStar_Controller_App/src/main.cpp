@@ -504,9 +504,10 @@ void init() {
 
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 60) {
-        // yield() feeds the FreeRTOS idle/watchdog tasks during the wait
-        delay(50);
+    // Wait for connection AND a valid DHCP address (not 0.0.0.0)
+    while ((WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0,0,0,0))
+           && attempts < 100) {
+        delay(100);
         yield();
         attempts++;
     }
