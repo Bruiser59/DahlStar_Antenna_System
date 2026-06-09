@@ -1,7 +1,10 @@
-// DahlStar Controller Firmware — Phase 1: Firmware Foundation
+// DahlStar Controller Firmware — Phase 1 + 2
 //
-// Implements: MotionController, RelayManager, DisplayManager, PersistenceManager,
-//             CommManager (Serial transport — Wi-Fi in Phase 2, BLE in Phase 3).
+// Phase 1: MotionController, RelayManager, DisplayManager, PersistenceManager,
+//          CommManager (USB serial — unchanged from Phase 1).
+// Phase 2: WiFiComm (TCP server on port 4242, mDNS hostname dahlstar.local).
+//          Both transports share one command dispatcher (processCmd).
+//          Unsolicited STATUS lines during motion go to both via broadcastLine().
 //
 // ── Relay polarity ────────────────────────────────────────────────────────────
 // All relays are on the Elegoo 8-channel optocoupler module — ACTIVE-LOW.
@@ -34,6 +37,9 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 #include <EEPROM.h>
+#include <WiFiS3.h>
+#include <WiFiMDNS.h>
+#include "secrets.h"   // WIFI_SSID, WIFI_PASS, MDNS_HOSTNAME — gitignored
 
 // ── Pin Definitions ───────────────────────────────────────────────────────────
 
@@ -72,6 +78,8 @@ const unsigned long DISPLAY_INTERVAL_MS = 500;   // OLED refresh during motion
 const uint8_t EEPROM_MAGIC_0 = 0xDA;
 const uint8_t EEPROM_MAGIC_1 = 0x57;
 const int     EEPROM_BASE    = 0;
+
+static const uint16_t kWifiPort = 4242;
 
 // ── Enumerations ─────────────────────────────────────────────────────────────
 
@@ -116,6 +124,24 @@ static bool          gCalibrated    = false;
 static bool          gDispDirty     = true;
 static unsigned long gLastStatusMs  = 0;
 static unsigned long gLastDispMs    = 0;
+
+// ── WiFi Globals ──────────────────────────────────────────────────────────────
+// Declared here so broadcastLine() and WiFiComm can reach them.
+
+static WiFiServer  gWifiServer(kWifiPort);
+static WiFiClient  gWifiClient;
+static bool        gWifiReady = false;
+
+// ── Broadcast Helper ──────────────────────────────────────────────────────────
+// Sends a line to Serial always. Also sends to the connected WiFi client if present.
+// Used for unsolicited STATUS lines that both transports should receive.
+
+static void broadcastLine(const String& msg) {
+    Serial.println(msg);
+    if (gWifiReady && gWifiClient && gWifiClient.connected()) {
+        gWifiClient.println(msg);
+    }
+}
 
 // ── PersistenceManager ────────────────────────────────────────────────────────
 
@@ -266,8 +292,8 @@ static void onHomeReached() {
     gCalibrated = true;
     Persist::save(0, gActiveTap);
     Display::render();
-    Serial.println("STATUS:POS:0");
-    Serial.println("STATUS:CAL:DONE");
+    broadcastLine("STATUS:POS:0");
+    broadcastLine("STATUS:CAL:DONE");
 }
 
 // Returns false if the command cannot be accepted.
@@ -324,8 +350,8 @@ void update() {
             Relay::motorOff();
             gMotorState = MOTOR_IDLE;
             Persist::save(stepper.currentPosition(), gActiveTap);
-            Serial.print("STATUS:POS:");
-            Serial.println(stepper.currentPosition());
+            String msg = "STATUS:POS:"; msg += stepper.currentPosition();
+            broadcastLine(msg);
             gDispDirty = true;
         }
     }
@@ -333,65 +359,60 @@ void update() {
 
 } // namespace Motion
 
-// ── CommManager (Serial — Phase 1 bench interface) ────────────────────────────
-//
-// Uses the same ASCII protocol that Phase 2 (Wi-Fi) will carry over TCP.
-// Commands: CMD:<VERB>[:<PARAM>]\n
-// Responses: ACK:<VERB>\n  |  NAK:<VERB>:<REASON>\n  |  STATUS:<KEY>:<VALUE>\n
+// ── Shared Command Dispatcher ─────────────────────────────────────────────────
+// processCmd() handles one complete "CMD:..." line and writes all responses to
+// the provided Print& output (Serial or WiFiClient). This is the single source
+// of truth for command parsing — both transports call it.
 
-namespace Comm {
-
-static String rxBuf;
-
-static void sendStatus() {
-    Serial.print("STATUS:POS:"); Serial.println(stepper.currentPosition());
-    Serial.print("STATUS:TAP:"); Serial.println(kTapNames[gActiveTap]);
-    Serial.print("STATUS:MTR:"); Serial.println(gMotorPowered ? "ON" : "OFF");
-    Serial.print("STATUS:CAL:"); Serial.println(gCalibrated   ? "DONE" : "PENDING");
+static void sendStatusTo(Print& out) {
+    out.print("STATUS:POS:"); out.println(stepper.currentPosition());
+    out.print("STATUS:TAP:"); out.println(kTapNames[gActiveTap]);
+    out.print("STATUS:MTR:"); out.println(gMotorPowered ? "ON" : "OFF");
+    out.print("STATUS:CAL:"); out.println(gCalibrated   ? "DONE" : "PENDING");
 }
 
-static void process(const String& cmd) {
+static void processCmd(const String& cmd, Print& out) {
     if (!cmd.startsWith("CMD:")) return;
     String body = cmd.substring(4);
 
     if (body == "CALIBRATE" || body == "HOME") {
-        if (Motion::startHome()) Serial.println("ACK:CALIBRATE");
-        else                     Serial.println("NAK:CALIBRATE:BUSY");
+        if (Motion::startHome()) out.println("ACK:CALIBRATE");
+        else                     out.println("NAK:CALIBRATE:BUSY");
 
     } else if (body == "STOP") {
         Motion::stop();
-        Serial.println("ACK:STOP");
+        out.println("ACK:STOP");
 
     } else if (body == "STATUS") {
-        sendStatus();
+        sendStatusTo(out);
 
     } else if (body == "EXTEND") {
-        if (Motion::startMove(+JOG_STEPS)) Serial.println("ACK:EXTEND");
-        else if (!gCalibrated)             Serial.println("NAK:EXTEND:NOT_CALIBRATED");
-        else                               Serial.println("NAK:EXTEND:BUSY");
+        if (Motion::startMove(+JOG_STEPS)) out.println("ACK:EXTEND");
+        else if (!gCalibrated)             out.println("NAK:EXTEND:NOT_CALIBRATED");
+        else                               out.println("NAK:EXTEND:BUSY");
 
     } else if (body == "RETRACT") {
-        if (Motion::startMove(-JOG_STEPS)) Serial.println("ACK:RETRACT");
-        else if (!gCalibrated)             Serial.println("NAK:RETRACT:NOT_CALIBRATED");
-        else                               Serial.println("NAK:RETRACT:BUSY");
+        if (Motion::startMove(-JOG_STEPS)) out.println("ACK:RETRACT");
+        else if (!gCalibrated)             out.println("NAK:RETRACT:NOT_CALIBRATED");
+        else                               out.println("NAK:RETRACT:BUSY");
 
     } else if (body.startsWith("MOVE:")) {
         long steps = body.substring(5).toInt();
-        if (Motion::startMove(steps)) Serial.println("ACK:MOVE");
-        else if (!gCalibrated)        Serial.println("NAK:MOVE:NOT_CALIBRATED");
-        else                          Serial.println("NAK:MOVE:BUSY");
+        if (Motion::startMove(steps)) out.println("ACK:MOVE");
+        else if (!gCalibrated)        out.println("NAK:MOVE:NOT_CALIBRATED");
+        else                          out.println("NAK:MOVE:BUSY");
 
     } else if (body == "MOTOR:ON") {
-        if (gMotorState != MOTOR_IDLE) { Serial.println("NAK:MOTOR:ON:BUSY"); return; }
+        if (gMotorState != MOTOR_IDLE) { out.println("NAK:MOTOR:ON:BUSY"); return; }
         Relay::motorOn();
         gDispDirty = true;
-        Serial.println("ACK:MOTOR:ON");
+        out.println("ACK:MOTOR:ON");
 
     } else if (body == "MOTOR:OFF") {
-        if (gMotorState != MOTOR_IDLE) { Serial.println("NAK:MOTOR:OFF:BUSY"); return; }
+        if (gMotorState != MOTOR_IDLE) { out.println("NAK:MOTOR:OFF:BUSY"); return; }
         Relay::motorOff();
         gDispDirty = true;
-        Serial.println("ACK:MOTOR:OFF");
+        out.println("ACK:MOTOR:OFF");
 
     } else if (body.startsWith("TAP:")) {
         String tapStr = body.substring(4);
@@ -399,23 +420,33 @@ static void process(const String& cmd) {
         for (uint8_t i = 0; i < TAP_COUNT; i++) {
             if (tapStr == kTapNames[i]) { tap = (TapId)i; break; }
         }
-        if (tap == TAP_COUNT) { Serial.println("NAK:TAP:UNKNOWN"); return; }
+        if (tap == TAP_COUNT) { out.println("NAK:TAP:UNKNOWN"); return; }
         Relay::setTap(tap);
         Persist::save(stepper.currentPosition(), gActiveTap);
         gDispDirty = true;
-        Serial.print("ACK:TAP:"); Serial.println(tapStr);
+        out.print("ACK:TAP:"); out.println(tapStr);
 
     } else {
-        Serial.print("NAK:"); Serial.print(body); Serial.println(":UNKNOWN_CMD");
+        out.print("NAK:"); out.print(body); out.println(":UNKNOWN_CMD");
     }
 }
+
+// ── CommManager (Serial — Phase 1 USB interface, unchanged behavior) ──────────
+//
+// Uses the same ASCII protocol that WiFiComm carries over TCP.
+// Commands: CMD:<VERB>[:<PARAM>]\n
+// Responses: ACK:<VERB>\n  |  NAK:<VERB>:<REASON>\n  |  STATUS:<KEY>:<VALUE>\n
+
+namespace Comm {
+
+static String rxBuf;
 
 void update() {
     while (Serial.available()) {
         char c = (char)Serial.read();
         if (c == '\n') {
             rxBuf.trim();
-            if (rxBuf.length()) process(rxBuf);
+            if (rxBuf.length()) processCmd(rxBuf, Serial);
             rxBuf = "";
         } else if (c != '\r') {
             rxBuf += c;
@@ -424,6 +455,92 @@ void update() {
 }
 
 } // namespace Comm
+
+// ── WiFiComm (Phase 2 — TCP transport) ───────────────────────────────────────
+//
+// Single-client TCP server on port 4242. Uses the same processCmd() as Serial.
+// Unsolicited STATUS lines during motion are delivered via broadcastLine().
+
+namespace WiFiComm {
+
+static String rxBuf;
+
+static void onClientConnected() {
+    // Send current state so the client is immediately in sync
+    sendStatusTo(gWifiClient);
+    gWifiClient.println("STATUS:TRANSPORT:WIFI");
+}
+
+void update() {
+    if (!gWifiReady) return;
+
+    // Accept a new client when none is connected
+    if (!gWifiClient || !gWifiClient.connected()) {
+        WiFiClient candidate = gWifiServer.available();
+        if (candidate) {
+            gWifiClient = candidate;
+            rxBuf = "";
+            onClientConnected();
+        }
+    }
+
+    if (!gWifiClient || !gWifiClient.connected()) return;
+
+    while (gWifiClient.available()) {
+        char c = (char)gWifiClient.read();
+        if (c == '\n') {
+            rxBuf.trim();
+            if (rxBuf.length()) processCmd(rxBuf, gWifiClient);
+            rxBuf = "";
+        } else if (c != '\r') {
+            rxBuf += c;
+        }
+    }
+}
+
+void init() {
+    Display::render("WiFi connecting");
+    Serial.print("STATUS:WIFI:CONNECTING:");
+    Serial.println(WIFI_SSID);
+
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+        delay(500);
+        attempts++;
+    }
+
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("STATUS:WIFI:FAILED");
+        Display::render("WiFi failed");
+        delay(1500);
+        return;
+    }
+
+    gWifiServer.begin();
+    MDNS.begin(MDNS_HOSTNAME);
+    MDNS.addService("_dahlstar", "_tcp", kWifiPort);
+
+    gWifiReady = true;
+
+    Serial.print("STATUS:WIFI:CONNECTED:");
+    Serial.println(WiFi.localIP());
+    Serial.print("STATUS:WIFI:HOSTNAME:");
+    Serial.print(MDNS_HOSTNAME);
+    Serial.println(".local");
+    Serial.print("STATUS:WIFI:PORT:");
+    Serial.println(kWifiPort);
+
+    {
+        char buf[28];
+        IPAddress ip = WiFi.localIP();
+        snprintf(buf, sizeof(buf), "%d.%d.%d.%d:%d", ip[0],ip[1],ip[2],ip[3], kWifiPort);
+        Display::render(buf);
+    }
+    delay(2000);
+}
+
+} // namespace WiFiComm
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -481,21 +598,26 @@ void setup() {
         Display::render();
         Serial.println("STATUS:READY");
     }
+
+    // WiFi init (Phase 2) — runs after hardware is fully configured
+    WiFiComm::init();
 }
 
 // ── Loop ──────────────────────────────────────────────────────────────────────
 
 void loop() {
     Comm::update();
+    WiFiComm::update();
     Motion::update();
+    MDNS.update();
 
     unsigned long now = millis();
 
-    // Periodic position status during motion
+    // Periodic position status during motion — goes to both transports
     if (gMotorState != MOTOR_IDLE && (now - gLastStatusMs) >= STATUS_INTERVAL_MS) {
         gLastStatusMs = now;
-        Serial.print("STATUS:POS:");
-        Serial.println(stepper.currentPosition());
+        String msg = "STATUS:POS:"; msg += stepper.currentPosition();
+        broadcastLine(msg);
     }
 
     // OLED refresh: immediately on state change, or periodically during motion

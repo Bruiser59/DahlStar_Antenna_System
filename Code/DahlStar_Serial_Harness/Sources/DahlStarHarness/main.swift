@@ -2,11 +2,16 @@
 //
 // Usage:
 //   DahlStarHarness [--port /dev/cu.usbmodemXXXX] [--baud 115200] [--test]
+//   DahlStarHarness --wifi [hostname]              [--port NNNN]   [--test]
+//
+// Transport selection:
+//   (default)   USB serial — auto-detects /dev/cu.usbmodem*
+//   --wifi      TCP over Wi-Fi — connects to dahlstar.local:4242 by default
 //
 // Interactive mode (default): type commands, see responses in real time.
 // Test mode (--test):         runs a scripted sequence exercising every command.
 //
-// Command format matches firmware CommManager exactly:
+// Command format matches firmware processCmd() exactly:
 //   CMD:EXTEND, CMD:RETRACT, CMD:CALIBRATE, CMD:STOP, CMD:STATUS,
 //   CMD:MOTOR:ON, CMD:MOTOR:OFF, CMD:TAP:<9T|10T|11T|12T|13T>, CMD:MOVE:<steps>
 
@@ -43,30 +48,63 @@ func printReceived(_ line: String) {
     print(colorize(line))
 }
 
+// ── Transport protocol ────────────────────────────────────────────────────────
+// Both SerialPort and TCPPort conform to this so the REPL / test code is shared.
+
+protocol DahlStarTransport {
+    func send(_ line: String) throws
+    func readLines() -> [String]
+}
+
+extension SerialPort: DahlStarTransport {}
+extension TCPPort:    DahlStarTransport {}
+
 // ── Argument parsing ──────────────────────────────────────────────────────────
 
-var portPath: String? = nil
-var baud      = 115200
-var testMode  = false
+var usbPortPath: String? = nil
+var baud         = 115200
+var testMode     = false
+var useWifi      = false
+var wifiHost     = "dahlstar.local"
+var wifiPort     = 4242
 
 var args = CommandLine.arguments.dropFirst()
 while !args.isEmpty {
     let arg = args.removeFirst()
     switch arg {
     case "--port":
-        portPath = args.isEmpty ? nil : args.removeFirst()
+        // In USB mode: serial device path. In WiFi mode: TCP port number.
+        if let next = args.first {
+            if useWifi, let n = Int(next) { wifiPort = n; args.removeFirst() }
+            else if !useWifi { usbPortPath = next; args.removeFirst() }
+            else { args.removeFirst() }
+        }
     case "--baud":
         if let v = args.first.flatMap(Int.init) { baud = v; args.removeFirst() }
+    case "--wifi":
+        useWifi = true
+        // Optional positional hostname after --wifi
+        if let next = args.first, !next.hasPrefix("--") {
+            wifiHost = next
+            args.removeFirst()
+        }
     case "--test":
         testMode = true
     case "--help", "-h":
         print("""
-        DahlStar Serial Harness — Phase 2 USB test tool
+        DahlStar Serial Harness — Phase 2 USB + Wi-Fi test tool
 
-        Usage: DahlStarHarness [--port PATH] [--baud 115200] [--test]
+        Usage (USB serial):
+          DahlStarHarness [--port /dev/cu.usbmodemXXXX] [--baud 115200] [--test]
 
-          --port PATH   Serial device (default: auto-detect /dev/cu.usbmodem*)
-          --baud RATE   Baud rate (default: 115200)
+        Usage (Wi-Fi TCP):
+          DahlStarHarness --wifi [hostname] [--port 4242] [--test]
+          Default hostname: dahlstar.local  (mDNS, resolves on local network)
+
+          --port PATH   USB: serial device path (default: auto-detect)
+          --baud RATE   USB: baud rate (default: 115200)
+          --wifi HOST   Wi-Fi: connect to HOST (default: dahlstar.local)
+          --port N      Wi-Fi: TCP port (default: 4242)
           --test        Run automated test sequence instead of interactive REPL
 
         Interactive commands (no CMD: prefix needed):
@@ -82,54 +120,66 @@ while !args.isEmpty {
     }
 }
 
-// ── Resolve port ──────────────────────────────────────────────────────────────
+// ── Open transport ────────────────────────────────────────────────────────────
 
-let resolvedPort: String
-if let p = portPath {
-    resolvedPort = p
-} else if let p = SerialPort.findArduinoPort() {
-    resolvedPort = p
-    print("Auto-detected Arduino port: \(ANSI.bold)\(p)\(ANSI.reset)")
+let transport: any DahlStarTransport
+
+if useWifi {
+    print("Connecting to \(ANSI.bold)\(wifiHost):\(wifiPort)\(ANSI.reset) over Wi-Fi...")
+    do {
+        transport = try TCPPort(hostname: wifiHost, port: UInt16(wifiPort))
+        print("Connected.\n")
+    } catch {
+        fputs("Error: \(error)\n", stderr)
+        exit(1)
+    }
 } else {
-    fputs("Error: no /dev/cu.usbmodem* port found. Connect Arduino and retry, or specify --port.\n", stderr)
-    exit(1)
+    let resolvedPort: String
+    if let p = usbPortPath {
+        resolvedPort = p
+    } else if let p = SerialPort.findArduinoPort() {
+        resolvedPort = p
+        print("Auto-detected Arduino port: \(ANSI.bold)\(p)\(ANSI.reset)")
+    } else {
+        fputs("Error: no /dev/cu.usbmodem* port found. Connect Arduino and retry, or use --wifi.\n", stderr)
+        exit(1)
+    }
+    do {
+        transport = try SerialPort(path: resolvedPort, baud: baud)
+        print("Opened \(resolvedPort) at \(baud) baud\n")
+    } catch {
+        fputs("Error: \(error)\n", stderr)
+        exit(1)
+    }
 }
 
-// ── Open port ─────────────────────────────────────────────────────────────────
+// ── Drain startup / connect messages ─────────────────────────────────────────
 
-let port: SerialPort
-do {
-    port = try SerialPort(path: resolvedPort, baud: baud)
-    print("Opened \(resolvedPort) at \(baud) baud\n")
-} catch {
-    fputs("Error: \(error)\n", stderr)
-    exit(1)
+if useWifi {
+    // WiFiComm sends STATUS lines immediately on connect — short wait is enough
+    Thread.sleep(forTimeInterval: 0.3)
+    for line in transport.readLines() { printReceived(line) }
+} else {
+    print("\(ANSI.gray)Waiting for firmware boot messages...\(ANSI.reset)")
+    Thread.sleep(forTimeInterval: 2.5)  // Arduino resets on USB open
+    for line in transport.readLines() { printReceived(line) }
 }
-
-// ── Drain startup messages ────────────────────────────────────────────────────
-
-print("\(ANSI.gray)Waiting for firmware boot messages...\(ANSI.reset)")
-Thread.sleep(forTimeInterval: 2.5)  // Arduino resets on USB open; give it time
-for line in port.readLines() { printReceived(line) }
 print()
 
 // ── Shared send+wait helper ───────────────────────────────────────────────────
 
-/// Send a command and collect responses for up to `timeout` seconds.
-/// Returns when an ACK, NAK, or STATUS:CAL:DONE line is received, or timeout expires.
 @discardableResult
 func send(_ verb: String, timeout: Double = 3.0) -> [String] {
     let cmd = verb.hasPrefix("CMD:") ? verb : "CMD:\(verb)"
     printSent(cmd)
-    do { try port.send(cmd) } catch { fputs("Send error: \(error)\n", stderr); return [] }
+    do { try transport.send(cmd) } catch { fputs("Send error: \(error)\n", stderr); return [] }
 
     var responses: [String] = []
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
-        for line in port.readLines() {
+        for line in transport.readLines() {
             printReceived(line)
             responses.append(line)
-            // A terminal response ends the wait early
             if line.hasPrefix("ACK:") || line.hasPrefix("NAK:") ||
                line == "STATUS:CAL:DONE" { return responses }
         }
@@ -138,11 +188,10 @@ func send(_ verb: String, timeout: Double = 3.0) -> [String] {
     return responses
 }
 
-/// Wait for incoming lines for `duration` seconds (used during motion).
 func drain(for duration: Double) {
     let deadline = Date().addingTimeInterval(duration)
     while Date() < deadline {
-        for line in port.readLines() { printReceived(line) }
+        for line in transport.readLines() { printReceived(line) }
         Thread.sleep(forTimeInterval: 0.05)
     }
 }
@@ -150,64 +199,54 @@ func drain(for duration: Double) {
 // ── Test mode ─────────────────────────────────────────────────────────────────
 
 func runTestSequence() {
-    printHeader("DahlStar Serial Harness — Automated Test Sequence")
+    let transportName = useWifi ? "Wi-Fi (\(wifiHost):\(wifiPort))" : "USB Serial"
+    printHeader("DahlStar Harness — Automated Test Sequence [\(transportName)]")
     print("Tests every firmware command. Motor will move — ensure antenna is clear.\n")
 
-    // 1. Status query
     printHeader("1 · Query initial status")
     send("STATUS")
 
-    // 2. Motor power on
     printHeader("2 · Motor power ON")
     send("MOTOR:ON")
     Thread.sleep(forTimeInterval: 0.5)
     send("STATUS")
 
-    // 3. Motor power off
     printHeader("3 · Motor power OFF")
     send("MOTOR:OFF")
 
-    // 4. Tap selection — cycle through all taps
     printHeader("4 · UNUN tap selection")
     for tap in ["9T","10T","12T","13T","11T"] {
         send("TAP:\(tap)")
         Thread.sleep(forTimeInterval: 0.3)
     }
-    send("STATUS")  // should report TAP:11T
+    send("STATUS")
 
-    // 5. Calibrate (home)
     printHeader("5 · CALIBRATE (homing to limit switch)")
     print("This may take up to 60 seconds depending on coil position...")
-    send("CALIBRATE", timeout: 0.5)   // just capture ACK; actual motion is polled below
-    drain(for: 60.0)                  // collect STATUS:POS updates and STATUS:CAL:DONE
+    send("CALIBRATE", timeout: 0.5)
+    drain(for: 60.0)
 
-    // 6. Extend a small amount
     printHeader("6 · EXTEND (1000 steps)")
     send("EXTEND")
     drain(for: 3.0)
 
-    // 7. Retract back
     printHeader("7 · RETRACT (1000 steps)")
     send("RETRACT")
     drain(for: 3.0)
 
-    // 8. MOVE absolute (move 5000 steps out)
     printHeader("8 · MOVE +5000 steps")
     send("MOVE:5000")
     drain(for: 5.0)
 
-    // 9. STOP (during motion — issue move then immediately stop)
     printHeader("9 · STOP mid-motion")
     send("MOVE:20000", timeout: 0.3)
     Thread.sleep(forTimeInterval: 0.5)
     send("STOP")
     drain(for: 1.0)
 
-    // 10. Final status
     printHeader("10 · Final status")
     send("STATUS")
 
-    // 11. Unknown command (should get NAK)
     printHeader("11 · Unknown command (expect NAK)")
     send("BOGUS:CMD")
 
@@ -218,19 +257,19 @@ func runTestSequence() {
 // ── Interactive REPL ──────────────────────────────────────────────────────────
 
 func runREPL() {
+    let transportName = useWifi ? "Wi-Fi (\(wifiHost):\(wifiPort))" : "USB Serial"
     print("""
-    \(ANSI.bold)DahlStar Serial Harness — Interactive Mode\(ANSI.reset)
+    \(ANSI.bold)DahlStar Harness — Interactive Mode [\(transportName)]\(ANSI.reset)
     Type commands without the CMD: prefix. Press Enter to send.
     Commands: EXTEND  RETRACT  CALIBRATE  STOP  STATUS
               MOTOR:ON  MOTOR:OFF  TAP:9T … TAP:13T  MOVE:<steps>
     Type \(ANSI.bold)quit\(ANSI.reset) or \(ANSI.bold)exit\(ANSI.reset) to close.
-    Received lines are printed as they arrive (green=ACK, red=NAK, cyan=STATUS).
+    Received lines: \(ANSI.green)green\(ANSI.reset)=ACK  \(ANSI.red)red\(ANSI.reset)=NAK  \(ANSI.cyan)cyan\(ANSI.reset)=STATUS
     """)
 
-    // Background reader thread: prints any unsolicited lines while user is typing
     let readThread = Thread {
         while true {
-            for line in port.readLines() { printReceived(line) }
+            for line in transport.readLines() { printReceived(line) }
             Thread.sleep(forTimeInterval: 0.05)
         }
     }
@@ -249,7 +288,7 @@ func runREPL() {
         let cmd = input.uppercased().hasPrefix("CMD:") ? input.uppercased()
                 : "CMD:" + input.uppercased()
         printSent(cmd)
-        do { try port.send(cmd) } catch { print("Send error: \(error)") }
+        do { try transport.send(cmd) } catch { print("Send error: \(error)") }
     }
 
     readThread.cancel()
