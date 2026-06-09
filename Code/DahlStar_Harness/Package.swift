@@ -7,7 +7,13 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "DahlStarHarness",
-            path: "Sources/DahlStarHarness"
+            path: "Sources/DahlStarHarness",
+            swiftSettings: [
+                .unsafeFlags(["-Xlinker", "-sectcreate",
+                              "-Xlinker", "__TEXT",
+                              "-Xlinker", "__entitlements",
+                              "-Xlinker", "DahlStarHarness.entitlements"])
+            ]
         )
     ]
 )
