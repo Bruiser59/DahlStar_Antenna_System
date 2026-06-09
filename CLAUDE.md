@@ -31,7 +31,7 @@ Images/                          ← Assembly and component photos
 
 **Phase 1 (Firmware Foundation):** ✅ Complete — `Code/DahlStar_Controller_App/src/main.cpp` implements full MotionController, RelayManager, DisplayManager, PersistenceManager, and CommManager (USB serial). Bench-validated on hardware.
 
-**Phase 2 (USB Serial Communication):** ✅ Complete — `Code/DahlStar_Serial_Harness/` is a Swift CLI harness (POSIX termios, no dependencies) for exercising all firmware commands interactively or via `--test` auto-sequence.
+**Phase 2 (USB Serial + Wi-Fi Communication):** ✅ Complete — `Code/DahlStar_Harness/` is a Swift CLI harness supporting both USB serial and Wi-Fi TCP (`--wifi`). Interactive REPL and `--test` auto-sequence work on both transports.
 
 **Phase 3 (macOS UI Application):** 🔲 Not started — `Code/DahlStar_User_Interface_App/` is still the default Xcode stub. Wi-Fi transport should be implemented first (simpler than BLE).
 
