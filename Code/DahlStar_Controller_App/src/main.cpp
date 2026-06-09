@@ -38,8 +38,7 @@
 #include <Wire.h>
 #include <EEPROM.h>
 #include <WiFiS3.h>
-#include <WiFiMDNS.h>
-#include "secrets.h"   // WIFI_SSID, WIFI_PASS, MDNS_HOSTNAME — gitignored
+#include "secrets.h"   // WIFI_SSID, WIFI_PASS — gitignored
 
 // ── Pin Definitions ───────────────────────────────────────────────────────────
 
@@ -518,16 +517,10 @@ void init() {
     }
 
     gWifiServer.begin();
-    MDNS.begin(MDNS_HOSTNAME);
-    MDNS.addService("_dahlstar", "_tcp", kWifiPort);
-
     gWifiReady = true;
 
     Serial.print("STATUS:WIFI:CONNECTED:");
     Serial.println(WiFi.localIP());
-    Serial.print("STATUS:WIFI:HOSTNAME:");
-    Serial.print(MDNS_HOSTNAME);
-    Serial.println(".local");
     Serial.print("STATUS:WIFI:PORT:");
     Serial.println(kWifiPort);
 
@@ -609,7 +602,6 @@ void loop() {
     Comm::update();
     WiFiComm::update();
     Motion::update();
-    MDNS.update();
 
     unsigned long now = millis();
 
