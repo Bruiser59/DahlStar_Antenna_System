@@ -16,7 +16,7 @@ final class TCPPort {
 
     init(hostname: String, port: UInt16) throws {
         var hints = addrinfo()
-        hints.ai_family   = AF_UNSPEC
+        hints.ai_family   = AF_INET    // Arduino WiFiS3 only supports IPv4
         hints.ai_socktype = SOCK_STREAM
 
         var res: UnsafeMutablePointer<addrinfo>? = nil
