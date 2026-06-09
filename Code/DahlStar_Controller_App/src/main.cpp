@@ -475,15 +475,14 @@ static void onClientConnected() {
 void update() {
     if (!gWifiReady) return;
 
-    // Accept a new client when none is connected.
-    // accept() fires on TCP handshake completion; available() only fires when
-    // the client has already sent data — too late for onClientConnected().
+    // available() returns a client that has data ready to read.
+    // The macOS harness sends CMD:STATUS immediately on connect, which
+    // triggers available() and hands us the client for the first time.
     if (!gWifiClient || !gWifiClient.connected()) {
-        WiFiClient candidate = gWifiServer.accept();
+        WiFiClient candidate = gWifiServer.available();
         if (candidate) {
             gWifiClient = candidate;
             rxBuf = "";
-            onClientConnected();
         }
     }
 

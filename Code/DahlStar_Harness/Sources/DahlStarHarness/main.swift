@@ -156,8 +156,11 @@ if useWifi {
 // ── Drain startup / connect messages ─────────────────────────────────────────
 
 if useWifi {
-    // WiFiComm sends STATUS lines immediately on connect — short wait is enough
-    Thread.sleep(forTimeInterval: 0.3)
+    // WiFiServer::available() only wakes when the client sends data, so we
+    // send CMD:STATUS immediately to give the firmware something to detect
+    // the connection with. The response serves as our connect-time state dump.
+    try? transport.send("CMD:STATUS")
+    Thread.sleep(forTimeInterval: 0.5)
     for line in transport.readLines() { printReceived(line) }
 } else {
     print("\(ANSI.gray)Waiting for firmware boot messages...\(ANSI.reset)")
