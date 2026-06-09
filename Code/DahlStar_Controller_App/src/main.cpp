@@ -475,9 +475,11 @@ static void onClientConnected() {
 void update() {
     if (!gWifiReady) return;
 
-    // Accept a new client when none is connected
+    // Accept a new client when none is connected.
+    // accept() fires on TCP handshake completion; available() only fires when
+    // the client has already sent data — too late for onClientConnected().
     if (!gWifiClient || !gWifiClient.connected()) {
-        WiFiClient candidate = gWifiServer.available();
+        WiFiClient candidate = gWifiServer.accept();
         if (candidate) {
             gWifiClient = candidate;
             rxBuf = "";
