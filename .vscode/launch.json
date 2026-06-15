@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:DahlStar_Antenna_System}/Code/DahlStar_Harness",
+            "name": "Debug DahlStarHarness (Code/DahlStar_Harness)",
+            "target": "DahlStarHarness",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug DahlStarHarness (Code/DahlStar_Harness)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:DahlStar_Antenna_System}/Code/DahlStar_Harness",
+            "name": "Release DahlStarHarness (Code/DahlStar_Harness)",
+            "target": "DahlStarHarness",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release DahlStarHarness (Code/DahlStar_Harness)"
+        }
+    ]
+}

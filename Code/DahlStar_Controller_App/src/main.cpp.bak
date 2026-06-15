@@ -34,7 +34,6 @@
 
 #include <Arduino.h>
 #include <AccelStepper.h>
-#include <FspTimer.h>
 #include <U8g2lib.h>
 #include <Wire.h>
 #include <EEPROM.h>
@@ -56,10 +55,8 @@
 #define PIN_TAP_9T       6    // K1, active-LOW, Normally Open
 #define PIN_TAP_10T     A2    // K2, active-LOW, Normally Open
 #define PIN_TAP_11T     A3    // K3, active-LOW, Normally Closed (default)
-// A4 = I2C SDA, A5 = I2C SCL — wiring K4/K5 there caused relay chatter on every
-// OLED display.sendBuffer() call. Moved to D2 and D4 (otherwise unused).
-#define PIN_TAP_12T      2    // K4, active-LOW, Normally Open  (was A4 — conflict with I2C SDA)
-#define PIN_TAP_13T      4    // K5, active-LOW, Normally Open  (was A5 — conflict with I2C SCL)
+#define PIN_TAP_12T     A4    // K4, active-LOW, Normally Open
+#define PIN_TAP_13T     A5    // K5, active-LOW, Normally Open
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -67,14 +64,11 @@
 //   17 in × 25.4 mm/in = 431.8 mm ÷ 0.00149 mm/step = 289,799 steps
 const long MAX_STEPS           = 289799L;
 
-// float HOMING_SPEED    = 200.0f;    // steps/sec — tunable via CMD:HOMESPEED:NNN
-// 200.0 is too slow. The mutter pulls too many amps at low speed. Keep it at
-// least 1000.0, as that seems to work well extension, retraction, and calibration.
-float HOMING_SPEED       = 1000.0f;
-float HOMING_ACCEL       = 500.0f;    // always HOMING_SPEED / 2
-float MOVE_SPEED         = 1000.0f;   // tunable via CMD:SPEED:NNNN
-float MOVE_ACCEL         =  500.0f;
-const long  JOG_STEPS          = 10000L;    // steps for bench EXTEND/RETRACT commands
+const float HOMING_SPEED       = 400.0f;    // steps/sec — slow for safe homing
+const float HOMING_ACCEL       = 200.0f;
+const float MOVE_SPEED         = 800.0f;    // steps/sec — normal operation
+const float MOVE_ACCEL         = 400.0f;
+const long  JOG_STEPS          = 1000L;     // steps for bench EXTEND/RETRACT commands
 
 const unsigned long STATUS_INTERVAL_MS  = 200;   // position reports during motion
 const unsigned long DISPLAY_INTERVAL_MS = 500;   // OLED refresh during motion
@@ -122,8 +116,7 @@ AccelStepper stepper(stepForward, stepBackward);
 
 // ── Global State ──────────────────────────────────────────────────────────────
 
-static volatile MotorState gMotorState  = MOTOR_IDLE;
-static volatile bool       gLimitHit    = false;   // set by ISR, cleared by Motion::update()
+static MotorState    gMotorState    = MOTOR_IDLE;
 static TapId         gActiveTap     = TAP_11T;
 static bool          gMotorPowered  = false;
 static bool          gCalibrated    = false;
@@ -138,63 +131,6 @@ static WiFiServer  gWifiServer(kWifiPort);
 static WiFiClient  gWifiClient;
 static bool        gWifiReady = false;
 
-// ── Step Timer ────────────────────────────────────────────────────────────────
-// stepper.run() fires from a 10 kHz hardware ISR instead of loop(), so step
-// timing is independent of WiFi SPI latency, display I2C, or any other loop()
-// overhead. At 10 kHz (100 µs period) there are ≥2 ISR calls per step even at
-// the maximum 4000 steps/sec, giving AccelStepper enough resolution to hit its
-// computed step times accurately.
-//
-// Safety: AccelStepper::setCurrentPosition() sets _targetPos = _currentPos and
-// _stepInterval = 0, so distanceToGo()==0 and the ISR does nothing during the
-// relay settle delays in motorOn/motorOff and onHomeReached.
-
-static FspTimer gStepTimer;
-
-static void onStepTimer(timer_callback_args_t *) {
-    if (gMotorState == MOTOR_IDLE) return;
-    stepper.run();
-    // Check limit switch at ISR rate so a 23 ms display block cannot miss the trigger window.
-    // Debounce: require 5 consecutive HIGH readings (500 µs) to reject EMI spikes.
-    // A real contact holds HIGH for milliseconds; a noise glitch won't survive 5 ticks.
-    static uint8_t limitCount = 0;
-    if (!gLimitHit) {
-        if (digitalRead(PIN_LIMIT) == HIGH) {
-            MotorState s = gMotorState;
-            if (s == MOTOR_HOMING ||
-                (s == MOTOR_MOVING && stepper.targetPosition() < stepper.currentPosition())) {
-                if (++limitCount >= 5) {
-                    stepper.moveTo(stepper.currentPosition()); // stop in next run() call
-                    gLimitHit = true;
-                    limitCount = 0;
-                }
-            } else {
-                limitCount = 0;
-            }
-        } else {
-            limitCount = 0;
-        }
-    }
-}
-
-static void initStepTimer() {
-    uint8_t timerType = GPT_TIMER;
-    int8_t  timerNum  = FspTimer::get_available_timer(timerType);
-    if (timerNum < 0) {
-        timerType = AGT_TIMER;
-        timerNum  = FspTimer::get_available_timer(timerType);
-    }
-    if (timerNum < 0) { Serial.println("STATUS:ERR:NO_STEP_TIMER"); return; }
-
-    if (!gStepTimer.begin(TIMER_MODE_PERIODIC, timerType, timerNum,
-                          10000.0f, 0.0f, onStepTimer) ||
-        !gStepTimer.setup_overflow_irq() ||
-        !gStepTimer.open()  ||
-        !gStepTimer.start()) {
-        Serial.println("STATUS:ERR:STEP_TIMER_FAILED");
-    }
-}
-
 // ── Broadcast Helper ──────────────────────────────────────────────────────────
 // Sends a line to Serial always. Also sends to the connected WiFi client if present.
 // Used for unsolicited STATUS lines that both transports should receive.
@@ -203,9 +139,7 @@ static void broadcastLine(const String& msg) {
     Serial.println(msg);
     if (gWifiReady && gWifiClient && gWifiClient.connected()) {
         gWifiClient.println(msg);
-        // No flush() here — TCP buffers data and transmits asynchronously.
-        // flush() blocks while the ESP32-S3 drains over SPI, which stalls
-        // stepper.run() for multiple milliseconds and kills step rate.
+        gWifiClient.flush();
     }
 }
 
@@ -291,22 +225,9 @@ void setTap(TapId tap) {
 
 namespace Display {
 
-// OLED_ENABLED = 0: suppress all I2C traffic to test whether A4/A5 pin conflict
-// is causing relay chatter (A4=SDA, A5=SCL overlap with PIN_TAP_12T/13T).
-// Set back to 1 after rewiring K4 and K5 to D2 and D4.
-#define OLED_ENABLED 1
-
-void init() {
-#if OLED_ENABLED
-    Wire.setClock(400000);
-    display.begin();
-#endif
-}
+void init() { display.begin(); }
 
 void render(const char* line2Override = nullptr) {
-    gDispDirty  = false;
-    gLastDispMs = millis();
-#if OLED_ENABLED
     long pos = stepper.currentPosition();
     int  pct = (gCalibrated && MAX_STEPS > 0)
                  ? (int)(100L * pos / MAX_STEPS) : -1;
@@ -314,8 +235,10 @@ void render(const char* line2Override = nullptr) {
     display.clearBuffer();
     display.setFont(u8g2_font_6x10_tr);
 
+    // Yellow zone (rows 0–15): title, centered
     display.drawStr(28, 11, "DahlStar");
 
+    // Line 2: position or status override
     if (line2Override) {
         display.drawStr(0, 26, line2Override);
     } else if (!gCalibrated) {
@@ -326,12 +249,14 @@ void render(const char* line2Override = nullptr) {
         display.drawStr(0, 26, buf);
     }
 
+    // Line 3: active UNUN tap
     {
         char buf[12];
         snprintf(buf, sizeof(buf), "TAP: %s", kTapNames[gActiveTap]);
         display.drawStr(0, 40, buf);
     }
 
+    // Line 4: motor / system state
     const char* mstate;
     if      (gMotorState == MOTOR_HOMING) mstate = "MTR: HOMING";
     else if (gMotorState == MOTOR_MOVING) mstate = "MTR: MOVING";
@@ -340,18 +265,17 @@ void render(const char* line2Override = nullptr) {
     display.drawStr(0, 54, mstate);
 
     display.sendBuffer();
-#endif
+    gDispDirty  = false;
+    gLastDispMs = millis();
 }
 
 void splash() {
-#if OLED_ENABLED
     display.clearBuffer();
     display.setFont(u8g2_font_ncenB14_tr);
     display.drawStr(8, 30, "DahlStar");
     display.setFont(u8g2_font_6x10_tr);
     display.drawStr(12, 50, "Initializing...");
     display.sendBuffer();
-#endif
 }
 
 } // namespace Display
@@ -361,9 +285,6 @@ void splash() {
 namespace Motion {
 
 static void onHomeReached() {
-    // Diagnostic: report the step position at which home was triggered.
-    // If this is far from 0 it was a false limit-switch trigger (noise), not real home.
-    broadcastLine(String("STATUS:HOME_TRIGGERED_AT:") + stepper.currentPosition());
     stepper.setCurrentPosition(0);
     stepper.stop();
     Relay::motorOff();
@@ -380,13 +301,9 @@ bool startHome() {
     if (gMotorState != MOTOR_IDLE) return false;
     gMotorState = MOTOR_HOMING;
     Relay::motorOn();
-    // noInterrupts() guard: setMaxSpeed/setAcceleration/moveTo touch multiple
-    // AccelStepper fields non-atomically; the step ISR must not call run() mid-update.
-    noInterrupts();
     stepper.setMaxSpeed(HOMING_SPEED);
     stepper.setAcceleration(HOMING_ACCEL);
     stepper.moveTo(-500000L);   // retract well past any real travel
-    interrupts();
     Display::render("Homing...");
     return true;
 }
@@ -395,16 +312,13 @@ bool startHome() {
 // Returns false if the command cannot be accepted.
 bool startMove(long steps) {
     if (gMotorState == MOTOR_HOMING) return false;
-    if (gMotorState == MOTOR_MOVING) return false;  // calling setAcceleration() mid-move corrupts AccelStepper
     if (!gCalibrated)                return false;
     long target = constrain(stepper.currentPosition() + steps, 0L, MAX_STEPS);
     if (!gMotorPowered) Relay::motorOn();
     gMotorState = MOTOR_MOVING;
-    noInterrupts();
     stepper.setMaxSpeed(MOVE_SPEED);
     stepper.setAcceleration(MOVE_ACCEL);
     stepper.moveTo(target);
-    interrupts();
     gDispDirty = true;
     return true;
 }
@@ -419,38 +333,19 @@ void update() {
     if (gMotorState == MOTOR_IDLE) return;
 
     if (gMotorState == MOTOR_HOMING) {
-        // gLimitHit set by ISR (reliable even during 23 ms display blocks).
-        // Direct digitalRead is a belt-and-suspenders backup; confirm with a second read
-        // 200 µs later so a single-sample noise hit on D5 doesn't trigger a false home.
-        bool limitAsserted = gLimitHit;
-        if (!limitAsserted && digitalRead(PIN_LIMIT) == HIGH) {
-            delayMicroseconds(200);
-            limitAsserted = (digitalRead(PIN_LIMIT) == HIGH);
-        }
-        if (limitAsserted) {
-            gLimitHit = false;
-            onHomeReached();
-            return;
-        }
-        // stepper.run() is called by the 10 kHz hardware ISR — not here.
+        if (digitalRead(PIN_LIMIT) == HIGH) { onHomeReached(); return; }
+        stepper.run();
         return;
     }
 
     if (gMotorState == MOTOR_MOVING) {
-        // Safety backstop: treat limit switch as home during retraction.
-        bool limitAsserted = gLimitHit;
-        if (!limitAsserted &&
-            stepper.targetPosition() < stepper.currentPosition() &&
+        // Safety backstop: treat limit switch as home during retraction
+        if (stepper.targetPosition() < stepper.currentPosition() &&
             digitalRead(PIN_LIMIT) == HIGH) {
-            delayMicroseconds(200);
-            limitAsserted = (digitalRead(PIN_LIMIT) == HIGH);
-        }
-        if (limitAsserted) {
-            gLimitHit = false;
             onHomeReached();
             return;
         }
-        // stepper.run() is called by the 10 kHz hardware ISR — not here.
+        stepper.run();
         if (stepper.distanceToGo() == 0) {
             Relay::motorOff();
             gMotorState = MOTOR_IDLE;
@@ -470,11 +365,10 @@ void update() {
 // of truth for command parsing — both transports call it.
 
 static void sendStatusTo(Print& out) {
-    out.print("STATUS:POS:");   out.println(stepper.currentPosition());
-    out.print("STATUS:TAP:");   out.println(kTapNames[gActiveTap]);
-    out.print("STATUS:MTR:");   out.println(gMotorPowered ? "ON" : "OFF");
-    out.print("STATUS:CAL:");   out.println(gCalibrated   ? "DONE" : "PENDING");
-    out.print("STATUS:LIMIT:"); out.println(digitalRead(PIN_LIMIT) == HIGH ? "HIGH" : "LOW");
+    out.print("STATUS:POS:"); out.println(stepper.currentPosition());
+    out.print("STATUS:TAP:"); out.println(kTapNames[gActiveTap]);
+    out.print("STATUS:MTR:"); out.println(gMotorPowered ? "ON" : "OFF");
+    out.print("STATUS:CAL:"); out.println(gCalibrated   ? "DONE" : "PENDING");
 }
 
 static void processCmd(const String& cmd, Print& out) {
@@ -507,26 +401,6 @@ static void processCmd(const String& cmd, Print& out) {
         if (Motion::startMove(steps)) out.println("ACK:MOVE");
         else if (!gCalibrated)        out.println("NAK:MOVE:NOT_CALIBRATED");
         else                          out.println("NAK:MOVE:BUSY");
-
-    } else if (body.startsWith("SPEED:")) {
-        float spd = body.substring(6).toFloat();
-        if (spd < 500.0f || spd > 4000.0f) {
-            out.println("NAK:SPEED:OUT_OF_RANGE");
-        } else {
-            MOVE_SPEED = spd;
-            MOVE_ACCEL = spd / 2.0f;
-            out.print("ACK:SPEED:"); out.println((int)MOVE_SPEED);
-        }
-
-    } else if (body.startsWith("HOMESPEED:")) {
-        float spd = body.substring(10).toFloat();
-        if (spd < 500.0f || spd > 4000.0f) {
-            out.println("NAK:HOMESPEED:OUT_OF_RANGE");
-        } else {
-            HOMING_SPEED = spd;
-            HOMING_ACCEL = spd / 2.0f;
-            out.print("ACK:HOMESPEED:"); out.println((int)HOMING_SPEED);
-        }
 
     } else if (body == "MOTOR:ON") {
         if (gMotorState != MOTOR_IDLE) { out.println("NAK:MOTOR:ON:BUSY"); return; }
@@ -592,46 +466,40 @@ namespace WiFiComm {
 static String rxBuf;
 
 static void onClientConnected() {
-    gWifiClient.println("STATUS:TRANSPORT:WIFI");
+    size_t n = gWifiClient.println("STATUS:TRANSPORT:WIFI");
     gWifiClient.flush();
+    Serial.print("DEBUG:WRITE_BYTES:"); Serial.println(n);
 }
 
 void update() {
     if (!gWifiReady) return;
 
-    // connected() involves an SPI round-trip — call it once and branch on the result.
-    bool connected = gWifiClient && gWifiClient.connected();
-    if (!connected) {
+    if (!gWifiClient || !gWifiClient.connected()) {
         WiFiClient candidate = gWifiServer.available();
         if (candidate) {
+            Serial.println("STATUS:WIFI:CLIENT_CONNECTED");
             gWifiClient = candidate;
             rxBuf = "";
             onClientConnected();
-            connected = true;
         }
     }
-    if (!connected) return;
 
-    // Guard with available() before entering the read loop. Each WiFiS3 read()
-    // involves an SPI round-trip to the ESP32-S3 (~100-500 µs); calling it in a
-    // tight loop when no data is present starves stepper.run() and kills step rate.
-    // available() under-reports occasionally, so use read()==-1 to drain fully once
-    // we know data is present.
-    if (gWifiClient.available() > 0) {
-        while (true) {
-            int b = gWifiClient.read();
-            if (b == -1) break;
-            char c = (char)b;
-            if (c == '\n') {
-                rxBuf.trim();
-                if (rxBuf.length()) {
-                    processCmd(rxBuf, gWifiClient);
-                    gWifiClient.flush();
-                }
-                rxBuf = "";
-            } else if (c != '\r') {
-                rxBuf += c;
+    if (!gWifiClient || !gWifiClient.connected()) return;
+
+    // Use read() directly — WiFiS3 available() can under-report buffered bytes
+    while (true) {
+        int b = gWifiClient.read();
+        if (b == -1) break;
+        char c = (char)b;
+        if (c == '\n') {
+            rxBuf.trim();
+            if (rxBuf.length()) {
+                processCmd(rxBuf, gWifiClient);
+                gWifiClient.flush();
             }
+            rxBuf = "";
+        } else if (c != '\r') {
+            rxBuf += c;
         }
     }
 }
@@ -724,9 +592,6 @@ void setup() {
     stepper.setMaxSpeed(MOVE_SPEED);
     stepper.setAcceleration(MOVE_ACCEL);
 
-    // Start the hardware step timer — must be before any motion begins
-    initStepTimer();
-
     // Auto-home if position is unknown
     if (!gCalibrated) {
         if (Motion::startHome()) {
@@ -745,24 +610,10 @@ void setup() {
 
 void loop() {
     Comm::update();
-
-    // Motion gets priority — called before WiFiComm so stepper.run() fires
-    // on every loop iteration without waiting for SPI overhead.
+    WiFiComm::update();
     Motion::update();
 
     unsigned long now = millis();
-
-    // WiFiComm::update() issues SPI transactions to the ESP32-S3 for connected()
-    // and available() — each can be hundreds of µs. Calling every loop iteration
-    // caps the step rate to 1/T_spi steps/sec regardless of AccelStepper's setting.
-    // During motion, rate-limit to once per 20ms (still fast enough for STOP commands).
-    {
-        static unsigned long lastWifiMs = 0;
-        if (gMotorState == MOTOR_IDLE || (now - lastWifiMs) >= 20) {
-            lastWifiMs = now;
-            WiFiComm::update();
-        }
-    }
 
     // Periodic position status during motion — goes to both transports
     if (gMotorState != MOTOR_IDLE && (now - gLastStatusMs) >= STATUS_INTERVAL_MS) {
@@ -771,13 +622,9 @@ void loop() {
         broadcastLine(msg);
     }
 
-    // OLED refresh: with the hardware step timer ISR, display.sendBuffer()
-    // blocking the main loop no longer affects step timing. During motion,
-    // refresh at the same 200ms rate as STATUS:POS broadcasts so % travel
-    // updates in real time. When idle, refresh on dirty flag or every 500ms.
-    if (gMotorState != MOTOR_IDLE) {
-        if (now - gLastDispMs >= STATUS_INTERVAL_MS) Display::render();
-    } else if (gDispDirty || (now - gLastDispMs) >= DISPLAY_INTERVAL_MS) {
+    // OLED refresh: immediately on state change, or periodically during motion
+    if (gDispDirty ||
+        (gMotorState != MOTOR_IDLE && (now - gLastDispMs) >= DISPLAY_INTERVAL_MS)) {
         Display::render();
     }
 }

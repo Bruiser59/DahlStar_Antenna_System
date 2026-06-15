@@ -1,21 +1,23 @@
-//
-//  ContentView.swift
-//  DahlStar_User_Interface_App
-//
-//  Created by Bruce Dahl on 5/15/26.
-//
+// ContentView.swift — Root view: routes between ConnectionView and MainView.
 
 import SwiftUI
 
 struct ContentView: View {
+    @State private var vm = AntennaViewModel()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Group {
+            switch vm.connectionState {
+            case .connected:
+                MainView(vm: vm)
+                    .transition(.opacity)
+            default:
+                ConnectionView(vm: vm)
+                    .transition(.opacity)
+            }
         }
-        .padding()
+        .animation(.easeInOut(duration: 0.2), value: vm.connectionState.isConnected)
+        .focusedSceneValue(\.dahlStarVM, vm)
     }
 }
 

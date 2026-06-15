@@ -13,9 +13,16 @@
 //
 // Command format matches firmware processCmd() exactly:
 //   CMD:EXTEND, CMD:RETRACT, CMD:CALIBRATE, CMD:STOP, CMD:STATUS,
-//   CMD:MOTOR:ON, CMD:MOTOR:OFF, CMD:TAP:<9T|10T|11T|12T|13T>, CMD:MOVE:<steps>
+//   CMD:MOTOR:ON, CMD:MOTOR:OFF, CMD:TAP:<9T|10T|11T|12T|13T>, CMD:MOVE:<steps>,
+//   CMD:SPEED:<steps/sec>      (100–4000, tunes MOVE_SPEED at runtime without reflashing)
+//   CMD:HOMESPEED:<steps/sec>  (50–600, tunes HOMING_SPEED at runtime without reflashing)
 
 import Foundation
+#if canImport(Darwin)
+import Darwin
+// Ignore SIGPIPE so a broken TCP connection throws an error rather than killing the process
+signal(SIGPIPE, SIG_IGN)
+#endif
 
 // ── ANSI helpers ─────────────────────────────────────────────────────────────
 
@@ -112,6 +119,7 @@ while !args.isEmpty {
           MOTOR:ON, MOTOR:OFF
           TAP:9T  TAP:10T  TAP:11T  TAP:12T  TAP:13T
           MOVE:<steps>
+          SPEED:<steps/sec>   (100–4000; sets MOVE_SPEED, accel = speed/2)
           quit / exit
         """)
         exit(0)
@@ -156,12 +164,25 @@ if useWifi {
 // ── Drain startup / connect messages ─────────────────────────────────────────
 
 if useWifi {
-    // WiFiServer::available() only wakes when the client sends data, so we
-    // send CMD:STATUS immediately to give the firmware something to detect
-    // the connection with. The response serves as our connect-time state dump.
-    try? transport.send("CMD:STATUS")
-    Thread.sleep(forTimeInterval: 0.5)
-    for line in transport.readLines() { printReceived(line) }
+    // WiFiServer::available() only wakes when the client sends data, so
+    // send CMD:STATUS to give the firmware something to trigger on.
+    // If the Arduino's previous client slot is stale it may take one extra
+    // heartbeat cycle (≤3 s) to free it, so retry until we get a response.
+    var gotResponse = false
+    for attempt in 1...25 {
+        do { try transport.send("CMD:STATUS") }
+        catch { fputs("WiFi send attempt \(attempt) error: \(error)\n", stderr) }
+        Thread.sleep(forTimeInterval: 1.0)
+        let lines = transport.readLines()
+        if !lines.isEmpty {
+            for line in lines { printReceived(line) }
+            gotResponse = true
+            break
+        }
+    }
+    if !gotResponse {
+        fputs("Warning: no response from firmware after 25 attempts\n", stderr)
+    }
 } else {
     print("\(ANSI.gray)Waiting for firmware boot messages...\(ANSI.reset)")
     Thread.sleep(forTimeInterval: 2.5)  // Arduino resets on USB open
@@ -266,12 +287,19 @@ func runREPL() {
     Type commands without the CMD: prefix. Press Enter to send.
     Commands: EXTEND  RETRACT  CALIBRATE  STOP  STATUS
               MOTOR:ON  MOTOR:OFF  TAP:9T … TAP:13T  MOVE:<steps>
+              SPEED:<steps/sec>       (100–4000, sets move speed without reflashing)
+              HOMESPEED:<steps/sec>  (50–600, sets homing speed without reflashing)
     Type \(ANSI.bold)quit\(ANSI.reset) or \(ANSI.bold)exit\(ANSI.reset) to close.
     Received lines: \(ANSI.green)green\(ANSI.reset)=ACK  \(ANSI.red)red\(ANSI.reset)=NAK  \(ANSI.cyan)cyan\(ANSI.reset)=STATUS
     """)
 
+    let tcpTransport = transport as? TCPPort
     let readThread = Thread {
         while true {
+            if let t = tcpTransport, t.connectionClosed {
+                fputs("Connection closed by firmware.\n", stderr)
+                exit(0)
+            }
             for line in transport.readLines() { printReceived(line) }
             Thread.sleep(forTimeInterval: 0.05)
         }

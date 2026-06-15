@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:DahlStar_Harness}",
+            "name": "Debug DahlStarHarness",
+            "target": "DahlStarHarness",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug DahlStarHarness"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:DahlStar_Harness}",
+            "name": "Release DahlStarHarness",
+            "target": "DahlStarHarness",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release DahlStarHarness"
+        }
+    ]
+}

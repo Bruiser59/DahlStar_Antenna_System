@@ -11,6 +11,7 @@ final class TCPPort {
 
     private let fd: Int32
     private var rxBuf = ""
+    private(set) var connectionClosed = false
 
     // ── Connect ───────────────────────────────────────────────────────────────
 
@@ -35,10 +36,17 @@ final class TCPPort {
             throw TCPError.connectFailed(hostname, port, errno)
         }
 
-        // Non-blocking reads so the REPL background thread can poll
-        var flags = fcntl(sock, F_GETFL)
-        flags |= O_NONBLOCK
-        _ = fcntl(sock, F_SETFL, flags)
+        // Disable Nagle so small commands flush immediately (no 200ms delay)
+        var nodelay: Int32 = 1
+        setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &nodelay, socklen_t(MemoryLayout<Int32>.size))
+
+        // SO_RCVTIMEO: read() waits up to 200ms for data, then returns EAGAIN.
+        // Better than O_NONBLOCK, which returned EAGAIN immediately before Arduino's
+        // response could arrive — causing the harness to never see incoming data.
+        var tv = timeval()
+        tv.tv_sec  = 0
+        tv.tv_usec = 200_000   // 200 ms
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
         fd = sock
     }
@@ -48,12 +56,9 @@ final class TCPPort {
     // ── Write ─────────────────────────────────────────────────────────────────
 
     func send(_ line: String) throws {
-        let bytes = (line + "\n").utf8
-        let count = bytes.count
-        let written = bytes.withContiguousStorageIfAvailable { ptr -> Int in
-            Darwin.write(fd, ptr.baseAddress!, count)
-        } ?? 0
-        if written != count { throw TCPError.writeFailed(errno) }
+        var bytes = Array((line + "\n").utf8)
+        let written = Darwin.write(fd, &bytes, bytes.count)
+        if written != bytes.count { throw TCPError.writeFailed(errno) }
     }
 
     // ── Read ──────────────────────────────────────────────────────────────────
@@ -62,10 +67,25 @@ final class TCPPort {
         var buf = [UInt8](repeating: 0, count: 512)
         var lines: [String] = []
         while true {
-            let n = Darwin.read(fd, &buf, buf.count)
-            if n <= 0 { break }
-            rxBuf += String(bytes: buf.prefix(n), encoding: .utf8) ?? ""
+            // withUnsafeMutableBytes pins buf's real storage so read() writes into
+            // it directly — &buf passes a temporary that gets discarded on return.
+            let n = buf.withUnsafeMutableBytes { ptr -> Int in
+                Darwin.read(fd, ptr.baseAddress!, ptr.count)
+            }
+            if n > 0 {
+                rxBuf += String(decoding: buf[..<n], as: UTF8.self)
+            } else {
+                if n == 0 {
+                    connectionClosed = true
+                } else if errno != EAGAIN && errno != EWOULDBLOCK {
+                    fputs("TCP:ERR:\(errno) \(String(cString: strerror(errno)))\n", stderr)
+                }
+                break
+            }
         }
+        // Arduino sends \r\n; Swift decodes CR+LF as a single grapheme cluster that
+        // doesn't equal the lone '\n' Character firstIndex searches for. Normalize first.
+        rxBuf = rxBuf.replacingOccurrences(of: "\r\n", with: "\n")
         while let nl = rxBuf.firstIndex(of: "\n") {
             let line = String(rxBuf[rxBuf.startIndex..<nl])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
