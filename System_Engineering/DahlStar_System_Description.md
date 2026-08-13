@@ -4,15 +4,15 @@
 
 ![System Assembly](../Images/System_Assembly.png)
 
-The DahlStar Antenna System V1 consists of a single motor-driven adjustable coil-loaded vertical antenna, similar to the classic screwdriver antenna design. It uses a stepper motor to extend/retract the coil accross fingerstock contacts at the top of a 36-inch radiating tube that houses the coil and the stepper motor. A ~6 foot radiating copper tube is attached to the upper end of the loading coil. The antenna is targetted to cover all bands from 80m to 10m.
+The DahlStar Antenna System V1 consists of a single motor-driven adjustable coil-loaded vertical antenna, similar to the classic screwdriver antenna design. It uses a stepper motor to extend/retract the coil accross fingerstock contacts at the top of a 36-inch radiating tube that houses the coil and the stepper motor. A ~5 foot radiating copper tube is attached to the upper end of the loading coil. The antenna is targetted to cover all bands from 80m to 10m.
 
 For impedence matching, a bifilar 4:1 unun (18 ga wire on a T106-2 core with 5 taps for turns 9A through 13A) is located in the unun housing near the bottom of the antenna outside of the radiating tube. The taps are selectable via electro-optical relays. 5 of the 8 relays available on the relay module are used for the taps. A 6th relay is used for remote poser switching for the stepper motor. 2 relays remain unused and are avaliable for future feature expansions.
 
-A contact limit switch is placed just above the stepper motor to sense when the loading coil has reached its fully retracted home position. For the fully extended position, monitoring the stepper motor count will be used instead of a limit switch. This requires that the antenna first be calibrated by moving it to its "home" position at the downstop limit switch prior to use. If t is already there when powered on, the system recognizes that and considers it already calibrated for use.
+A contact limit switch is placed just above the stepper motor to sense when the loading coil has reached its fully retracted home position. For the fully extended position, monitoring the stepper motor count will be used instead of a limit switch. This requires that the antenna first be calibrated by moving it to its "home" position at the downstop limit switch prior to use. The software app has a dedicated "Calibrate" button to perform this action.
 
-A key feature of the design is the guiding slots in the inner sleeve (affixed to the radiating tube) that engage the tabs on the carriage (affixed to the leadscrew nut / loading coil / form / structural tube). This prevents the coil from rotating as it extends and retracts. Note: this feature is lacking in the classic screwdriver antenna design. Although they function, the lack of any anti-rotation feature is bothersome.
+A key feature of the design is the guiding slots in the inner sleeve (affixed to the radiating tube) that engage the tabs on the carriage (affixed to the leadscrew nut / loading coil / form / structural tube). This prevents the coil from rotating as it extends and retracts. This anti-rotation feature is lacking in the classic screwdriver antenna design. 
 
-An Arduino Uno 4 Wi-Fi board is used for the antenna controller. The user interface for the system is coded in Swift, with implementations for MacOS an the Raspberry Pi 5. If the design is ever monetized/marketed, iPhone and iPad versions are envisioned.
+An Arduino Uno 4 Wi-Fi board is used for the antenna controller. The current user interface for the system is coded in Swift for the MacOS operating system. Windows and Linux implementations of the user interface applications would be trivial.
 
 ## 2 - System Schematic Diagram
 
@@ -299,7 +299,7 @@ Specifications and costs for all components are included in this section.
 
 [Arduino Uno R4 Wifi Schematics](../Datasheets/Arduino_R4_WiFi-schematics.pdf)
 
-Approximate Cost: $27.50 (Amazon)
+Cost: $27.50 (Amazon)
 
 #### 3.1.2 - A2: Arduino Motor Controller Shield R3
 
@@ -307,7 +307,7 @@ Approximate Cost: $27.50 (Amazon)
 
 [Arduino Motor Controller Shield R3 Schematic](../Datasheets/Arduino_Motor_Controller_R3-schematic.pdf)
 
-Approximate Cost: $28.40 (Amazon)
+Cost: $28.40 (Amazon)
 
 #### 3.1.3 - A3: Hosyond 0.96 Inch OLED I2C Display Module
 
@@ -315,7 +315,7 @@ Approximate Cost: $28.40 (Amazon)
 
 [Hosyond GME12864-13 Datasheet](../Datasheets/OLED 4 Pin 128x64 Display module 0.96 inch blue color.pdf)
 
-Approximate Cost: $13.48 (Amazon, 5 units)
+Cost: $13.48 (Amazon, 5 units)
 
 #### 3.1.4 - A4: Elegoo 8 Channel Relay Module
 
@@ -329,7 +329,7 @@ Approximate Cost: $13.48 (Amazon, 5 units)
 
 [Elegoo 8 Channel Relay Module Dimensions](../Datasheets/8 way photocoupler with size chart.pdf)
 
-Approximate Cost: $8.99 (Amazon)
+Cost: $8.99 (Amazon)
 
 #### 3.1.5 - A5: 5V Converter Module
 
@@ -341,7 +341,7 @@ Although they can be purchased, the 12V to 5V voltage converter for this impleme
 * TO220 Heat Sink
 * Proto Board
 
-Approximate Cost (Amazon):
+Cost (Amazon):
 
 * $3.00 (Custom)
 * $10.00-$15.00 (If purchased complete)
@@ -353,33 +353,31 @@ Although software-only debouncing of the limit switch may be sufficient for this
 * R1 - 10K Ohm 1/4W Resistor
 * C3 = 100nF Ceramic Capacitor
 
-Approximate Cost: $0.25
+Cost: $0.25
 
 #### 3.1.7 - J1 / J2: SZJELEN SP21 2-Pin Panel Mount 21mm Waterproof Connector
 
 ![SZJELEN SP21 Connector](../Images/SZJLEN_SP.png_Connector.png)
 
-Approximate Cost: $9.20 (Amazon)
+Cost: $9.20 (Amazon)
 
 #### 3.1.8 - J3: USB-C Connector / Jumper
 
 ![AAOTOKK USB Type C Panel Mount Adapter Cable](../Images/AAOTOKK_USB_Type_C_Panel_Mount_Adapter_Cable.png)
 
-Approximate Cost: $9.69 (Amazon)
+Cost: $9.69 (Amazon)
 
 #### 3.1.9 - J4: Screw Terminal Bus Bar
 
 ![Square D PK7GTACP 7 Terminal Ground Bar Kit](../Images/Screw_Terminal_Bus_Bar.png)
 
-Note: Although it is officially named as a ground bar, it is not being used for grounding in this system. Instead, it is used to capture the signal from whatever unun tap is active.
-
-Approximate Cost: $8.98 (Amazon)
+Cost: $8.98 (Amazon)
 
 #### 3.1.10 - J5: SO239 Antenna Connector
 
 ![bnafes UHF Female SO239 Panel Chassis Connector](../Images/bnafes_UHF_Female_SO239_Chassis_Mount_Connector.png)
 
-Approximate Cost: $8.99 (Amazon, 4 units)
+Cost: $8.99 (Amazon, 4 units)
 
 #### 3.1.11 - J6: SO239 Radio Connector
 
