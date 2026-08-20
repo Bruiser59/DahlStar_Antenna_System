@@ -303,7 +303,7 @@ Cost: $27.50 (Amazon)
 
 #### 3.1.2 - A2: Arduino Motor Controller Shield R3
 
-![Arduino Motor Controller Shield R3 Image](../Images/Arduino_Motor_Controller_Shield_R3.png)
+![Arduino Motor Controller Shield R3](../Images/Arduino_Motor_Controller_Shield_R3.png)
 
 [Arduino Motor Controller Shield R3 Schematic](../Datasheets/Arduino_Motor_Controller_R3-schematic.pdf)
 
