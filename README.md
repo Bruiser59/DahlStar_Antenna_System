@@ -481,6 +481,54 @@ Note: To avoid damage to the 3D printed Tripod Leg End Fittings from side loadin
 
 ## 7 - Network Requirements
 
+A wireless are network (WAN) is required for antenna operation. Both the antenna and the computer to control it must be linked to the same network. Note that the WAN doesn't need to be connected to the internet to use the antenna. This facilitates off-grid operations where internet service is not available.
+
+Any wireless network router should work as long as it supports 2G mode, as that is the only mode supported by the Arduino. The controlling computer, however, can connect to any router supported mode (2G, 5G, 6G, etc.). The Beryl AX GL-MT3000 router is highly recommended, and is a popular choice for portable amateur radio operations. It is open-source supported and easily configurable for just about any scenario. It is also small and robustly packaged. Note that this modem indicates that it supports 2.5G instead of 2G, but the Arduino recognizes it as 2G with no problems.
+
+![alt text](Images/Beryl_AX_GL-MT3000.jpg)
+
 ## 8 - Arduino Firmware
 
+The Arduino must be loaded with firmware, custom designed for the antenna operation. It is beyond the scope of this document to describe the loading process or how to use the software tools for doing it.
+
+### 8.1 - Firmware Programming Environment
+
+The PlatformIO plugin was used with Visual Studio Code as the programming environment for the Arduino. This is a modern, robust environment that is an improvement on the basic Arduino IDE. Although the Arduino IDE can be used, minor modifications to the code will be required that strips out the PlatformIO-specific items. Whether you chose PlatformIO/Visual Studio Code or Arduino IDE, all are free.
+
+### 8.2 - Required libraries
+
+Two libraries are required to support the Arduino programming. They are:
+
+1. AccelStepper Arduino Library - Supports the stepper motor operation
+2. U8g2lib - Supports the OLED display
+
+Both libraries can be found and loaded through the PlatformIO interface.
+
+### 8.3 - Firmware Source Code
+
+The Arduino firmware source code can be found in the Code/DahlStar_Controller_App folder of this repository. After installing the PlatformIO plugin in Visual Studio Code, simply open the DahlStar_Controller_App folder from within PlatformIO.
+
+IMPORTANT NOTE: You must create a secrets.h file (either in the include folder, or the src folder). A secrets.h.template file is available for this purpose in the src folder. This file will contain the connection specifics for your WAN router. Add your network ID and password to the secrets.h file before compiling and uploading to the Arduino.
+
+### 8.4 - Identifying the Antenna IP Address
+
+With the router on and with your network configured, power on the DahlStar antenna. Once connected, the IP address that the antenna is using will be shown on its OLED display. Note this number, as it is needed for configuring the user interface software.
+
 ## 9 - User-Interface Software
+
+The source code for the DahStar User Interface Application can be found in the Code/DahlStar_User_Interface_App folder of this repository. The Swift/SwiftUI programming language was used for the application as it is native to Apple products. Although the current application is tailored to the MacOS operating system, it could easily be ported to the iPad and iPhone. 
+
+### 9.1 - Software Compilation
+
+To compile the source code, use the Xcode application on an Apple Mac computer. This application is free and can be downloaded from the Apple App Store. Once installed, open the DahlStart_User_Interface_App folder from within Xcode. 
+
+### 9.2 - Software Startup
+
+The startup screen requires entry of the antenna IP address and a port. For the antenna address, enter the IP address recorded from the antenna's OLED display. Alternatively, the IP address for the antenna can be found by using your router's management software. For the port address, enter 4242.
+
+The application is currently very simple but functional. It does, however, provide the ability to store extension settings for all of the amateur radio bands from 10m through 80m. Upon application startup, the antenna must first be calibrated (using the application's Calibrate button) to ensure that both the hardware and software are in sync.  
+
+## 10 - Antenna System Performance
+
+
+
