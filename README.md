@@ -174,6 +174,8 @@ The 3D printed components were designed for a printer with a build volume of 300
 
 Note: For the 3D printed antenna components, ASA filament is recommended for durability to temperature and weather. For the tripod components, Nylon is recommended for its strength and toughness. Other materials may be used at the expense of both durability and strength.
 
+The 3D-printable .stl models for all parts can be found as a .zip file in the Models/Stl folder of this repository.
+
 ### 4.1 - Coil Form Bottom
 
 ![Coil Form Bottom](Images/Coil_Form_Bottom.png)
@@ -512,7 +514,7 @@ IMPORTANT NOTE: You must create a secrets.h file (either in the include folder, 
 
 ### 8.4 - Identifying the Antenna IP Address
 
-With the router on and with your network configured, power on the DahlStar antenna. Once connected, the IP address that the antenna is using will be shown on its OLED display. Note this number, as it is needed for configuring the user interface software.
+With the router on and with your network configured, power on the DahlStar antenna. Once connected, use your router's management tool to identify the IP address assigned to the antenna. It is recommended to set that address to be persistent (static) so that it never changes. Note the address, since it will be needed at startup in the user-interface application.
 
 ## 9 - User-Interface Software
 
@@ -530,5 +532,21 @@ The application is currently very simple but functional. It does, however, provi
 
 ## 10 - Antenna System Performance
 
+Although the DahlStar Antenna System can be used without ground radials or counterpoise, its performance significantly benefits from them. It was found that using 8X 17ft long wires equally spread radially around the antenna works well for 15m through 80m. The easiest configuration is to simply lay them on the ground. Elevating them offers some improvement. Other wire lengths can be used to tailor the antenna towards the 10m band with some performance degradation on other bands. Experimenting with other lengths for the upper radiating element copper tube in combination with ground radial/counterpoise lengths could/should be explored to develop a performance database for this design. 
 
+Ground radial/counterpoise attachment can be facilitated by using a flat washer sized for the male SO239 feed point connector. Drill 8X holes equally spaced radially near the outer edge of the washer, and attach the crimped-lug wires to it using screws and nuts. Install the washer on the feed point connector prior to making the feed line coax connection. An additional washer may need to be installed so that tightening the coax connector serves to also snug up the wired washer. 
+
+## 11 - Development Notes
+
+![Concept-Reality](Images/Concept-Reality.png)
+
+This project took about 12 months to complete it to a functional configuration. All of the hardware design was completed manually, using the free community version of the Siemens Solidedge software. That software can be obtained here:  https://solidedge.siemens.com/en/. Note that, although it is a fully featured professional package, it has a steep learning curve for those with little 3D CAD modelling experience. Other packages may be more suitable for those without that experience. KiCad was used for the schematic development. It is also free and can be downloaded here: https://www.kicad.org. This package is open source and also supports PC board design and fabrication.
+
+Shielded CAT6 wire was used for all of the non-power Arduino and Relay pin connections. RG174 wire was used for all of the RF wiring. The shielding elements for all were grounded at both ends of the wire runs, with the exception of the final feed to the lower radiating element antenna body tube, which was grounded only at the ends common to the relays.
+
+Anthropic's Claude Code AI was used to assist in development and debugging of the Arduino firmware and that MacOS user-interface application. AI proved to be useful, but did not come without problems. It managed to reverse the logic for the stepper motor direction as well as the limit switch. This resulted in damaging a stepper motor and motor coupling, requiring the replacement of both. An issue with the stepper motor stalling was mis-diagnosed and incorrectly addressed by AI. Instead of reducing the default motor speed, the correct solution was to increase it. It also took a significant amount of time to debug the WIFI connection with the Arduino. THis was a little surprising, as that is a common task performed by many. The AI designed user-interface application is a bit clunky, but functional. Future significant improvements to it are planned and will be implemented at some point.
+
+## 12 - Developer Contact Info
+
+Bruce A. Dahl is the designer of the DahlStar Antenna System. He is a retired Mechanical Engineer and a General-licensed Amateur Radio Operator with the call sign of KK7MEH. He can be contacted via the email address available on his QRZ profile page at: https://www.qrz.com/db/KK7MEH.
 
