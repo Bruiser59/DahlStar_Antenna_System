@@ -524,11 +524,17 @@ The source code for the DahStar User Interface Application can be found in the C
 
 To compile the source code, use the Xcode application on an Apple Mac computer. This application is free and can be downloaded from the Apple App Store. Once installed, open the DahlStart_User_Interface_App folder from within Xcode. 
 
-### 9.2 - Software Startup
+### 9.2 - Startup Screen
 
 The startup screen requires entry of the antenna IP address and a port. For the antenna address, enter the IP address recorded from the antenna's OLED display. Alternatively, the IP address for the antenna can be found by using your router's management software. For the port address, enter 4242.
 
-The application is currently very simple but functional. It does, however, provide the ability to store extension settings for all of the amateur radio bands from 10m through 80m. Upon application startup, the antenna must first be calibrated (using the application's Calibrate button) to ensure that both the hardware and software are in sync.  
+![User Interface Software Opening Screen](Images/User_Interface_Software_01.png)
+
+### 9.3 - Main Screen
+
+The application is currently very simple but functional. It does provide the ability to store extension settings for all of the amateur radio bands from 10m through 80m. Note that upon application startup, the antenna must first be calibrated (using the application's Calibrate button) before any other commands can be executed to ensure that both the hardware and software are in sync.  
+
+![User Interface Software Main Screen](Images/User_Interface_Software_02.png)
 
 ## 10 - Antenna System Performance
 
@@ -540,13 +546,13 @@ Ground radial/counterpoise attachment can be facilitated by using a flat washer 
 
 ![Concept-Reality](Images/Concept-Reality.png)
 
-This project took about 12 months to complete it to a functional configuration. All of the hardware design was completed manually, using the free community version of the Siemens Solidedge software. That software can be obtained here:  https://solidedge.siemens.com/en/. Note that, although it is a fully featured professional package, it has a steep learning curve for those with little 3D CAD modelling experience. Other packages may be more suitable for those without that experience. KiCad was used for the schematic development. It is also free and can be downloaded here: https://www.kicad.org. This package is open source and also supports PC board design and fabrication.
+This project took about 12 months to mature it to a functional configuration. All of the hardware design was completed manually, using the free community version of the Siemens Solidedge software. That software can be obtained here:  https://solidedge.siemens.com/en/. Note that, although it is a fully featured professional package, it has a steep learning curve for those with little 3D CAD modelling experience. Other packages may be more suitable for those without that experience. KiCad was used for the schematic development. It is also free and can be downloaded here: https://www.kicad.org. This package is open source and also supports PC board design and fabrication.
 
 Shielded CAT6 wire was used for all of the non-power Arduino and Relay pin connections. RG174 wire was used for all of the RF wiring. The shielding elements for all were grounded at both ends of the wire runs, with the exception of the final feed to the lower radiating element antenna body tube, which was grounded only at the ends common to the relays.
 
-Anthropic's Claude Code AI was used to assist in development and debugging of the Arduino firmware and that MacOS user-interface application. AI proved to be useful, but did not come without problems. It managed to reverse the logic for the stepper motor direction as well as the limit switch. This resulted in damaging a stepper motor and motor coupling, requiring the replacement of both. An issue with the stepper motor stalling was mis-diagnosed and incorrectly addressed by AI. Instead of reducing the default motor speed, the correct solution was to increase it. It also took a significant amount of time to debug the WIFI connection with the Arduino. THis was a little surprising, as that is a common task performed by many. The AI designed user-interface application is a bit clunky, but functional. Future significant improvements to it are planned and will be implemented at some point.
+Anthropic's Claude Code AI was used to assist in development and debugging of the Arduino firmware and that MacOS user-interface application. AI proved to be useful, but did not come without problems. It managed to reverse the logic for the stepper motor direction as well as the limit switch. This resulted in damaging a stepper motor and motor coupling, requiring the replacement of both. An issue with the stepper motor stalling was mis-diagnosed and incorrectly addressed by AI. Instead of reducing the default motor speed, the correct solution was to increase it. It also took a significant amount of time to debug the WIFI connection with the Arduino. This was a little surprising (and really annoying), as that is a common task performed by many. The AI designed user-interface application is a bit clunky, but functional. Future significant improvements to it are planned and will be implemented at some point.
 
-## 12 - Developer Contact Info
+## 12 - About the Designer
 
 Bruce A. Dahl is the designer of the DahlStar Antenna System. He is a retired Mechanical Engineer and a General-licensed Amateur Radio Operator with the call sign of KK7MEH. He can be contacted via the email address available on his QRZ profile page at: https://www.qrz.com/db/KK7MEH.
 
