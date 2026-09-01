@@ -146,7 +146,7 @@ Quantity required: 72 inches
 
 ### 3.11 - L2: Loading Coil Assembly
 
-The loading coil is made by winding 18 GA bare copper wire around the coil form. Images and assembly details are provided in Section 5. 
+The loading coil is made by winding 18 GA bare copper wire around the coil form. Images and assembly details are provided in Section 6. 
 
 NOTE: DO NOT USE THE 18 GA ENAMELED WIRE, AS THE LOADING COIL RELIES ON MAKING ELECTRICAL CONTACT WITH THE SURROUNDING FINGERSTOCK. BARE WIRE MUST BE USED TO FACILITATE THIS.
 
@@ -518,7 +518,7 @@ With the router on and with your network configured, power on the DahlStar anten
 
 ## 9 - User-Interface Software
 
-The source code for the DahStar User Interface Application can be found in the Code/DahlStar_User_Interface_App folder of this repository. The Swift/SwiftUI programming language was used for the application as it is native to Apple products. Although the current application is tailored to the MacOS operating system, it could easily be ported to the iPad and iPhone. 
+The source code for the DahlStar User Interface Application can be found in the Code/DahlStar_User_Interface_App folder of this repository. The Swift/SwiftUI programming language was used for the application as it is native to Apple products. Although the current application is tailored to the MacOS operating system, it could easily be ported to the iPad and iPhone. 
 
 ### 9.1 - Software Compilation
 
