@@ -330,21 +330,21 @@ Available from DigiKey Electronics
 
 Quantity required: 1 strip
 
-**CAUTION: The material for this fingerstock is Beryllium Copper, and is a carcinogenic in its powder form. As such, any processes that create dust of that material should be avoided without proper hygienic protection and handling. When used in this antenna application, the builder/user should be aware of the following:**
+**CAUTION: The material for this fingerstock is Beryllium Copper, and is a carcinogenic in its powder/dust form. As such, any processes that create dust of that material should be avoided without proper hygienic protection and handling. When used in this antenna application, the builder/user should be aware of the following:**
 
-In general, the hazard is tied to process, not to the alloy's mere presence or normal mechanical function, and normal sliding/wiping contact isn't the kind of operation that generates hazardous beryllium dust.
+* In general, the hazard is tied to process, not to the alloy's mere presence or normal mechanical function, and normal sliding/wiping contact isn't the kind of operation that generates hazardous beryllium dust.
 
-The danger from beryllium copper is airborne, respirable-sized particulate — fine enough to reach deep lung tissue and trigger chronic beryllium disease or sensitization in susceptible people. That fine dust/fume is produced by operations that abrade or vaporize the base metal at meaningful energy: machining, grinding, sanding, filing, and any other operation that removes base metal. Melting, welding, and abrasive blasting fall in the same category. 
+* The danger from beryllium copper is airborne, respirable-sized particulate — fine enough to reach deep lung tissue and trigger chronic beryllium disease or sensitization in susceptible people. That fine dust/fume is produced by operations that abrade or vaporize the base metal at meaningful energy: machining, grinding, sanding, filing, and any other operation that removes base metal. Melting, welding, and abrasive blasting fall in the same category. 
 
-Fingerstock is specifically designed for repeated wiping/sliding contact as its normal service life — that's the whole point of the "wiping action" in door seals, RF gaskets, and tube socket contacts where frequent access is required, made resistant to fatigue with only low compression forces needed, remaining flexible for many years. One manufacturer makes the process distinction explicit: because the contacts are stamped and formed, no dust is produced — the hazard is specifically tied to grinding the material, not to using it. 
+* Fingerstock is specifically designed for repeated wiping/sliding contact as its normal service life — that's the whole point of the "wiping action" in door seals, RF gaskets, and tube socket contacts where frequent access is required, made resistant to fatigue with only low compression forces needed, remaining flexible for many years. One manufacturer makes the process distinction explicit: because the contacts are stamped and formed, no dust is produced — the hazard is specifically tied to grinding the material, not to using it. 
 
-Light, low-force sliding contact against a copper coil (like a roller inductor tap or wiper contact) is mechanically similar to what fingerstock is built for. At normal currents and contact pressures, wear happens by burnishing/polishing rather than abrasive material removal, and any debris tends to be larger flakes rather than respirable fume — categorically different from a grinding wheel or file.
+* Light, low-force sliding contact against a copper coil (like a roller inductor tap or wiper contact) is mechanically similar to what fingerstock is built for. At normal currents and contact pressures, wear happens by burnishing/polishing rather than abrasive material removal, and any debris tends to be larger flakes rather than respirable fume — categorically different from a grinding wheel or file.
+ 
+Where you'd actually need to be careful:
 
-Where you'd actually need to be careful
+* If contacts are later filed, sanded, or ground during maintenance or fitting — that's exactly the process that generates hazardous dust, and you'd want a respirator, wet methods, and no dry sweeping.
 
-If contacts are later filed, sanded, or ground during maintenance or fitting — that's exactly the process that generates hazardous dust, and you'd want a respirator, wet methods, and no dry sweeping.
-
-**Arcing or overheating at the contact (excessive current, poor pressure, high SWR) can locally vaporize metal — that's a fume-generating condition, not simple wear.
+* **Arcing or overheating at the contact (excessive current, poor pressure, high SWR) can locally vaporize metal — that's a fume-generating condition, not simple wear.
 Standard housekeeping caution still applies: don't dry-sand or blow out accumulated metallic dust from an enclosure with an air hose; wipe or vacuum with HEPA filtration instead.**
 
 For an antenna tuner or roller inductor application, the practical takeaway is: use it as intended (clean wiping contact, adequate contact pressure, no arcing), and the routine wear won't put you in beryllium-dust territory — just avoid mechanical reshaping operations on the material itself.
