@@ -146,7 +146,7 @@ Quantity required: 72 inches
 
 ### 3.11 - L2: Loading Coil Assembly
 
-The loading coil is made by winding 19 GA bare copper wire around the coil form. Images and assembly details are provided in Section 6. 
+The loading coil is made by winding 16 GA bare copper wire around the coil form. Images and assembly details are provided in Section 6. 
 
 NOTE: DO NOT USE 16 GA ENAMELED WIRE, AS THE LOADING COIL RELIES ON MAKING ELECTRICAL CONTACT WITH THE SURROUNDING FINGERSTOCK. BARE WIRE MUST BE USED TO FACILITATE THIS.
 
