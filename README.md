@@ -146,9 +146,9 @@ Quantity required: 72 inches
 
 ### 3.11 - L2: Loading Coil Assembly
 
-The loading coil is made by winding 18 GA bare copper wire around the coil form. Images and assembly details are provided in Section 6. 
+The loading coil is made by winding 19 GA bare copper wire around the coil form. Images and assembly details are provided in Section 6. 
 
-NOTE: DO NOT USE THE 18 GA ENAMELED WIRE, AS THE LOADING COIL RELIES ON MAKING ELECTRICAL CONTACT WITH THE SURROUNDING FINGERSTOCK. BARE WIRE MUST BE USED TO FACILITATE THIS.
+NOTE: DO NOT USE 16 GA ENAMELED WIRE, AS THE LOADING COIL RELIES ON MAKING ELECTRICAL CONTACT WITH THE SURROUNDING FINGERSTOCK. BARE WIRE MUST BE USED TO FACILITATE THIS.
 
 Quantity required: 1
 
@@ -340,9 +340,9 @@ Quantity required: 1 strip
 
 * Light, low-force sliding contact against a copper coil (like a roller inductor tap or wiper contact) is mechanically similar to what fingerstock is built for. At normal currents and contact pressures, wear happens by burnishing/polishing rather than abrasive material removal, and any debris tends to be larger flakes rather than respirable fume — categorically different from a grinding wheel or file.
  
-Where you'd actually need to be careful:
+**Where you'd actually need to be careful:**
 
-* If contacts are later filed, sanded, or ground during maintenance or fitting — that's exactly the process that generates hazardous dust, and you'd want a respirator, wet methods, and no dry sweeping.
+* **If contacts are later filed, sanded, or ground during maintenance or fitting — that's exactly the process that generates hazardous dust, and you'd want a respirator, wet methods, and no dry sweeping.**
 
 * **Arcing or overheating at the contact (excessive current, poor pressure, high SWR) can locally vaporize metal — that's a fume-generating condition, not simple wear.
 Standard housekeeping caution still applies: don't dry-sand or blow out accumulated metallic dust from an enclosure with an air hose; wipe or vacuum with HEPA filtration instead.**
