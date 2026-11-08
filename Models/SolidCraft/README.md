@@ -11,3 +11,4 @@ In the conversion process, extensive definitions of parameters are being made an
 ## Status
 2026/11/07: The coil form segments and the coil form support tube have been modelled, with the exception of the coil grooves. SoliCraft is not yet capable of modelling that, and I have reported it as an issue to the development team. They are currently focused on incorporating a new backend math model into the product. It is unknown how that will perform in regards to this once they make it public.
 
+2026/11/08: After modeling the coil wire, the overall length should be 18 inches. It ens up just a little longer, after specifying .1 pitch (.254mm) and 180 turns. Need to report this as a bug to the SolidCraft developers, but will wait for them to release the new math model first.
