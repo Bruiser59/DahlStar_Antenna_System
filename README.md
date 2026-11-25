@@ -1,5 +1,7 @@
 # DahlStar Antenna System
 
+**IMPORTANT NOTE: I am currently working on version 2 of the design, incorporating all of my many learnings (both documented and undocumented) while also remodelling everything in the open source SolidCraft application. I have also dumped Claude Code in favor of local AI models served by LMstudio. As such, expect some significant changes to this documentation in the future.** 
+
 ## 1 - Overview
 
 ![DahlStar Antenna System](Images/Dahlstar_Antenna_System.png)
